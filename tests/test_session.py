@@ -65,8 +65,8 @@ class SessionAgentTests(unittest.IsolatedAsyncioTestCase):
                     if kind == "tool_intent": raise OSError("disk failed")
                     return original(kind, data)
                 with patch.object(store, "append", side_effect=failing), patch.object(tools, "execute") as execute:
-                    with self.assertRaises(OSError):
-                        async for _ in agent.run("test"): pass
+                    events = [event async for event in agent.run("test")]
+                    self.assertEqual(events[-1].data['reason'],'failed')
                     execute.assert_not_called()
 
     async def test_resume_never_replays_uncertain_calls(self):

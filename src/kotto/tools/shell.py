@@ -34,8 +34,9 @@ def register_shell(executor):
                 captured[name].extend(chunk[:remaining])
         readers = [asyncio.create_task(drain(process.stdout, "stdout")), asyncio.create_task(drain(process.stderr, "stderr"))]
         timed_out = False
+        group = asyncio.gather(process.wait(), *readers)
         try:
-            await asyncio.wait_for(asyncio.gather(process.wait(), *readers), args.get("timeout", 30))
+            await asyncio.wait_for(asyncio.shield(group), args.get("timeout", 30))
         except asyncio.TimeoutError:
             timed_out = True
             await terminate(process)
@@ -46,6 +47,7 @@ def register_shell(executor):
             for task in readers:
                 if not task.done(): task.cancel()
             await asyncio.gather(*readers, return_exceptions=True)
+            await asyncio.gather(group, return_exceptions=True)
         result = {"returncode": process.returncode, "timed_out": timed_out, "truncated": False, "execution_host": "local"}
         for name, data in captured.items():
             result[name] = data[:6000].decode("utf-8", errors="replace")

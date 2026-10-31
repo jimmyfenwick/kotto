@@ -23,6 +23,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("prompt")
     run_parser.add_argument("--json", action="store_true")
     run_parser.add_argument("--max-rounds", type=int, default=12)
+    run_parser.add_argument("--max-tool-calls", type=int, default=64)
+    run_parser.add_argument("--timeout", type=float, default=300, help="Total run timeout in seconds")
+    run_parser.add_argument("--max-total-tokens", type=int, help="Stop after reported cumulative usage reaches this limit; not a hard remote billing cap")
+    run_parser.add_argument("--interactive", action="store_true", help="Accept /steer TEXT and /cancel while running (TTY text mode)")
     from kotto.cli.sessions import DEFAULT_ROOT
     from kotto.session.store import SessionError
     run_parser.add_argument("--session-root", default=DEFAULT_ROOT)
@@ -57,6 +61,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 from kotto.cli.run import run
                 if args.max_rounds < 1:
                     raise ConfigurationError("max-rounds must be positive.")
+                if args.max_tool_calls<1 or args.timeout<=0 or (args.max_total_tokens is not None and args.max_total_tokens<1):
+                    raise ConfigurationError("Run budgets must be positive.")
                 return asyncio.run(run(settings, args))
             return asyncio.run(chat(settings, args.prompt, json_mode=args.json))
         except (ConfigurationError, SessionError, OSError) as error:
@@ -70,7 +76,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.json:
                 print(json.dumps({"event": "error", "data": {"kind": "cancelled", "complete": False}}))
             else:
-                print("\nChat cancelled.")
+                print("\nOperation cancelled.")
             return 130
 
     try:

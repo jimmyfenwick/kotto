@@ -83,15 +83,22 @@
       ],
       "commit": {
         "subject": "feat(F06): execute and verify commands with bounded lifecycle",
-        "lookup": "git log --fixed-strings --grep=feat(F06)"
+        "lookup": "git log --fixed-strings --grep=feat(F06)",
+        "sha": "51f6969684369664674ac529aadf822a36f1dc62",
+        "remote_verified": true
       }
     },
     {
       "id": "F07",
       "spec": "07-run-control.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F07.md"
+      ],
+      "commit": {
+        "subject": "feat(F07): add cancellation steering and bounded runs",
+        "lookup": "git log --fixed-strings --grep=feat(F07)"
+      }
     },
     {
       "id": "F08",
