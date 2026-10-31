@@ -1,1 +1,1 @@
-"""Model provider integration and streaming adaptation. Implementation pending."""
+"""Model integration and streaming adaptation; see gateway.ModelGateway."""

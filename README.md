@@ -10,7 +10,7 @@ KOTTO 为模型提供上下文、工具与执行环境，管理一次任务从�
 
 项目借鉴 Pi 的模块化与可扩展思路，独立设计 Python 实现；目前不是 Pi 的兼容实现或移植版本。
 
-> 当前状态：F01 工程与 CLI 已实现，Agent 和真实模型调用尚未实现。已确定首个模型服务为 DeepSeek。完整首版按 [十个功能规格](specs/README.md) 逐项交付；其他能力均为计划。
+> 当前状态：F01 工程与 CLI、F02 DeepSeek 流式对话已完成验收。Agent 工具循环尚未实现。已确定首个模型服务为 DeepSeek。完整首版按 [十个功能规格](specs/README.md) 逐项交付；其他能力均为计划。
 
 ## 项目要解决什么
 
@@ -101,7 +101,7 @@ flowchart TD
 - 接口使用类型标注与必要的 `Protocol`；外部输入仍需运行时校验。
 - 第一版单进程、单会话单写入者；工具默认按顺序执行。
 - 会话计划使用追加式 JSONL 日志，大型输出独立保存为附件。
-- 模型 SDK、CLI 渲染库和参数校验库在对应实现阶段选择；当前没有运行时第三方依赖。
+- 模型 SDK、CLI 渲染库和参数校验库在对应实现阶段选择；F02 本地实现使用 httpx 0.28.1；当前没有模型 SDK 或额外 CLI 框架。
 
 ## 安装与当前可用命令
 
@@ -115,7 +115,7 @@ kotto --version
 kotto doctor --json
 ```
 
-`python -m kotto` 与 `kotto` 是同一 CLI。无参数显示帮助；当前仅提供版本和 `doctor`，没有 `chat` 或 `run`。
+`python -m kotto` 与 `kotto` 是同一 CLI。无参数显示帮助；当前提供版本、`doctor` 和 `chat`，还没有 Agent `run` 命令。
 
 `doctor` 只检查本地配置，不联网、不验证 Key 有效性。配置齐全时返回 0；缺少 Key、工作目录不存在或格式错误时返回 2。`remote_verified` 始终为 false。
 
@@ -130,7 +130,7 @@ kotto doctor
 
 - `KOTTO_API_KEY`：如果定义，优先于 `DEEPSEEK_API_KEY`；显式空值不会回退。
 - `KOTTO_BASE_URL`：默认 `https://api.deepseek.com`，仅接受不带认证信息、查询串和片段的 HTTP(S) 地址。
-- `KOTTO_MODEL`：默认 `deepseek-flash`，可改为服务支持的其他模型。
+- `KOTTO_MODEL`：默认 `deepseek-flash`（当前对应 Flash 4.1），可改为服务支持的其他模型。
 - `KOTTO_WORKSPACE`：默认当前目录，必须为已存在目录。
 
 [.env.example](.env.example) 仅供参考，程序不自动加载 `.env`。不要把真实 Key 提交到 Git。默认地址与模型名依据 [DeepSeek 官方接入文档](https://api-docs.deepseek.com/)；这是配置默认值，不代表当前已实现模型调用。
@@ -145,7 +145,18 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 [规格索引](specs/README.md) 列出十个功能点及依赖，[实施状态](specs/status.json) 记录验收进度。F01 提交同时包含现有骨架与全部规格；后续每项完成并验证后单独提交 GitHub。最后一项必须通过安装、真实模型、工具及代码任务的集成验收，才能称为完整首版。
 
-下一项 F02：DeepSeek 流式对话。真实服务验证需要用户在运行环境配置 Key，测试夹具结果不能替代真实调用证据。
+F02 流式对话：
+
+```bash
+kotto chat '只回复 KOTTO_OK'
+kotto chat '你好' --json
+```
+
+JSON 输出为逐行事件，区分 text_delta、reasoning_delta、usage、message、finished、error。`message` 仅在完整成功终止后产生；中断或长度耗尽不视为完成。chat 退出码为：0 成功、1 模型/协议错误、2 配置错误、130 用户取消。默认关闭思考模式；保留服务实际返回的思考内容，但普通文本模式只显示最终回答。
+
+2026-10-31 已完成真实 DeepSeek smoke：请求 `deepseek-flash`，收到预期短回复并正常结束，用量合计 19 tokens。官方文档当前将该标识映射到 DeepSeek-V4.1-Flash-1017；它是可变化的服务别名，不是固定版本锁定。后续接入服务时需复核映射。
+
+下一项 F03：只读工具与 Agent 执行循环。
 
 ## 品牌与许可
 

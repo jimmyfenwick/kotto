@@ -1,1 +1,1 @@
-"""Shared messages, tool results, and events. Implementation pending."""
+"""Shared model events; tool and Agent contracts are added with their features."""

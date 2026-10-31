@@ -70,4 +70,4 @@ feat(F02): add streaming model gateway and chat command
 - [官方接入文档](https://api-docs.deepseek.com/)
 - [官方工具调用文档](https://api-docs.deepseek.com/guides/tool_calls/)
 
-当前只核验文档，尚未完成真实服务请求；适配实现时复核流式、思考内容与工具回传约束。
+已用 httpx 0.28.1 完成本地适配和离线测试，并于 2026-10-31 完成真实 DeepSeek 文本流式请求。默认 deepseek-flash 按官方文档对应 Flash 4.1；思考模式关闭，后续工具执行按 F03 验收。

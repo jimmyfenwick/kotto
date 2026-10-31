@@ -13,15 +13,22 @@
       ],
       "commit": {
         "subject": "feat(F01): bootstrap installable CLI and ten-feature specifications",
-        "lookup": "git log --all --grep=feat(F01) --fixed-strings"
+        "lookup": "git log --all --grep=feat(F01) --fixed-strings",
+        "sha": "821c7f1eb335744a35101e644e4588d385c3589e",
+        "remote_verified": true
       }
     },
     {
       "id": "F02",
       "spec": "02-model-chat.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F02.md"
+      ],
+      "commit": {
+        "subject": "feat(F02): add streaming model gateway and chat command",
+        "lookup": "git log --all --grep=feat(F02) --fixed-strings"
+      }
     },
     {
       "id": "F03",
@@ -80,12 +87,10 @@
       "commit": null
     }
   ],
-  "open_decisions": [
-    "DeepSeek credentials for real-service verification"
-  ],
+  "open_decisions": [],
   "decisions": {
     "model_service": "DeepSeek",
-    "default_model": "deepseek-flash (configurable)",
+    "default_model": "deepseek-flash (official alias currently served by DeepSeek-V4.1-Flash-1017)",
     "code_license": "MIT",
     "brand_terms": "BRAND.md"
   }

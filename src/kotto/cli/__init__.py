@@ -1,1 +1,1 @@
-"""Command-line input and event rendering. Implementation pending."""
+"""Command-line input and streaming event rendering."""
