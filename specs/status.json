@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-10-31",
+  "scope": "KOTTO v0.1 local Python Agent Harness",
+  "release_status": "NOT_READY",
+  "features": [
+    {
+      "id": "F01",
+      "spec": "01-cli-and-project.md",
+      "status": "DONE",
+      "evidence": [
+        "evidence/F01.md"
+      ],
+      "commit": {
+        "subject": "feat(F01): bootstrap installable CLI and ten-feature specifications",
+        "lookup": "git log --all --grep=feat(F01) --fixed-strings"
+      }
+    },
+    {
+      "id": "F02",
+      "spec": "02-model-chat.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F03",
+      "spec": "03-readonly-agent.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F04",
+      "spec": "04-durable-session.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F05",
+      "spec": "05-safe-editing.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F06",
+      "spec": "06-command-execution.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F07",
+      "spec": "07-run-control.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F08",
+      "spec": "08-context-management.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F09",
+      "spec": "09-extensions-and-sdk.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    },
+    {
+      "id": "F10",
+      "spec": "10-complete-release.md",
+      "status": "PENDING",
+      "evidence": [],
+      "commit": null
+    }
+  ],
+  "open_decisions": [
+    "DeepSeek credentials for real-service verification"
+  ],
+  "decisions": {
+    "model_service": "DeepSeek",
+    "default_model": "deepseek-flash (configurable)",
+    "code_license": "MIT",
+    "brand_terms": "BRAND.md"
+  }
+}

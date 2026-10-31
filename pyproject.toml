@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kotto"
+version = "0.1.0.dev0"
+description = "A lightweight, extensible Python Agent Harness."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+license = "MIT"
+
+[project.scripts]
+kotto = "kotto.cli.main:main"
+
+[project.urls]
+Repository = "https://github.com/jimmyfenwick/kotto"
+
+[tool.setuptools.packages.find]
+where = ["src"]
