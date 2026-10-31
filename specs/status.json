@@ -55,15 +55,22 @@
       ],
       "commit": {
         "subject": "feat(F04): persist sessions and detect uncertain tool executions",
-        "lookup": "git log --fixed-strings --grep=feat(F04)"
+        "lookup": "git log --fixed-strings --grep=feat(F04)",
+        "sha": "0ea60189b3bce60787181f649ece0d53d526b55c",
+        "remote_verified": true
       }
     },
     {
       "id": "F05",
       "spec": "05-safe-editing.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F05.md"
+      ],
+      "commit": {
+        "subject": "feat(F05): add explicit tool policies and conflict-aware editing",
+        "lookup": "git log --fixed-strings --grep=feat(F05)"
+      }
     },
     {
       "id": "F06",

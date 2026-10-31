@@ -2,6 +2,7 @@
 import asyncio
 import os
 import json
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -50,7 +51,9 @@ class Tool:
 
 
 class ToolExecutor:
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, *, policy=None):
+        from kotto.tools.policy import Policy
+        self.policy = policy or Policy()
         self.workspace = workspace.resolve()
         if not self.workspace.is_dir(): raise ValueError("Workspace must exist.")
         self.tools = {}
@@ -61,6 +64,8 @@ class ToolExecutor:
         self.register(Tool("read", "Read UTF-8 source with exact line numbers. Maximum 200 lines per call.", schema({"path": path, "start": number, "limit": number}, ["path"]), self._read))
         self.register(Tool("search", "Find literal text in at most 1000 source files; returns paths and line numbers.", schema({"query": {"type": "string"}}, ["query"]), self._search))
         self.register(Tool("artifact_read", "Read a bounded slice of a current session artifact.", schema({"id": path, "start": {"type": "integer", "minimum": 0}}, ["id"]), self._artifact_read))
+        from kotto.tools.editing import register_edits
+        register_edits(self)
 
     def register(self, tool):
         if tool.name in self.tools: raise ValueError("Duplicate tool name.")
@@ -90,6 +95,7 @@ class ToolExecutor:
             if name not in self.tools: raise ValueError("Unknown tool.")
             tool = self.tools[name]
             validate(args, tool.parameters)
+            if not await self.policy.authorize(tool, args): raise ValueError("Permission denied by tool policy.")
             content = await tool.handler(args)
             text = json.dumps(content, ensure_ascii=False)
             if len(text) > 16000:
@@ -121,10 +127,11 @@ class ToolExecutor:
     async def _read(self, args):
         def work():
             p = self.path(args["path"])
-            lines = self._text(p).splitlines()
+            text = self._text(p)
+            lines = text.splitlines()
             start, limit = args.get("start", 1), min(args.get("limit", 200), 200)
             chosen = lines[start-1:start-1+limit]
-            return {"path": str(p.relative_to(self.workspace)), "start": start,
+            return {"path": str(p.relative_to(self.workspace)), "sha256": hashlib.sha256(text.encode()).hexdigest(), "start": start,
                     "text": "\n".join(f"{i}: {line}" for i, line in enumerate(chosen, start)),
                     "total_lines": len(lines), "truncated": start-1+len(chosen) < len(lines)}
         return await asyncio.to_thread(work)
