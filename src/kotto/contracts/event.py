@@ -8,3 +8,9 @@ from typing import Any, Literal
 class ModelEvent:
     kind: Literal["text_delta", "reasoning_delta", "usage", "message", "finished"]
     data: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class AgentEvent:
+    kind: str
+    data: dict[str, Any]

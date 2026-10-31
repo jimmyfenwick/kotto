@@ -27,15 +27,22 @@
       ],
       "commit": {
         "subject": "feat(F02): add streaming model gateway and chat command",
-        "lookup": "git log --all --grep=feat(F02) --fixed-strings"
+        "lookup": "git log --all --grep=feat(F02) --fixed-strings",
+        "sha": "0fcf811142d1670031b87d5d52a91f5fb8fef3c4",
+        "remote_verified": true
       }
     },
     {
       "id": "F03",
       "spec": "03-readonly-agent.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F03.md"
+      ],
+      "commit": {
+        "subject": "feat(F03): add read-only coding agent with validated tools",
+        "lookup": "git log --fixed-strings --grep=feat(F03)"
+      }
     },
     {
       "id": "F04",

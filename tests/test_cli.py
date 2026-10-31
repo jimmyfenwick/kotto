@@ -75,7 +75,7 @@ class CLITests(unittest.TestCase):
         self.assertIn("workspace", result.stdout)
 
     def test_unknown_command_is_rejected(self):
-        result = self.run_cli("run", "pretend to work")
+        result = self.run_cli("unknown-command", "pretend to work")
         self.assertEqual(result.returncode, 2)
 
     def test_doctor_never_connects_and_settings_repr_hides_key(self):

@@ -19,17 +19,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     chat_parser = commands.add_parser("chat", help="Send one prompt to DeepSeek and stream its reply")
     chat_parser.add_argument("prompt", help="Prompt text (quote multi-word prompts)")
     chat_parser.add_argument("--json", action="store_true", help="Output JSON events, one per line")
+    run_parser = commands.add_parser("run", help="Run a read-only coding agent in the configured workspace")
+    run_parser.add_argument("prompt")
+    run_parser.add_argument("--json", action="store_true")
+    run_parser.add_argument("--max-rounds", type=int, default=12)
     args = parser.parse_args(argv)
     if args.command is None:
         parser.print_help()
         return 0
 
-    if args.command == "chat":
+    if args.command in {"chat", "run"}:
         from kotto.cli.chat import chat
         try:
             settings = Settings.from_env(os.environ)
             if not args.prompt.strip():
                 raise ConfigurationError("Prompt must not be empty.")
+            if args.command == "run":
+                from kotto.cli.run import run
+                if args.max_rounds < 1:
+                    raise ConfigurationError("max-rounds must be positive.")
+                return asyncio.run(run(settings, args))
             return asyncio.run(chat(settings, args.prompt, json_mode=args.json))
         except ConfigurationError as error:
             if args.json:
