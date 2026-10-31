@@ -1,11 +1,13 @@
 """Validated tool dispatch and bounded workspace operations."""
 import asyncio
 import os
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from kotto.contracts.tool import ToolResult
+from kotto.session.store import SessionError
 
 MAX_FILE = 1024 * 1024
 IGNORED = {".git", ".venv", "node_modules", ".kotto", "__pycache__"}
@@ -52,11 +54,13 @@ class ToolExecutor:
         self.workspace = workspace.resolve()
         if not self.workspace.is_dir(): raise ValueError("Workspace must exist.")
         self.tools = {}
+        self.journal = None
         path = {"type": "string"}
         number = {"type": "integer", "minimum": 1, "maximum": 2000}
         self.register(Tool("list", "List a workspace directory. No recursive scan.", schema({"path": path}, []), self._list))
         self.register(Tool("read", "Read UTF-8 source with exact line numbers. Maximum 200 lines per call.", schema({"path": path, "start": number, "limit": number}, ["path"]), self._read))
         self.register(Tool("search", "Find literal text in at most 1000 source files; returns paths and line numbers.", schema({"query": {"type": "string"}}, ["query"]), self._search))
+        self.register(Tool("artifact_read", "Read a bounded slice of a current session artifact.", schema({"id": path, "start": {"type": "integer", "minimum": 0}}, ["id"]), self._artifact_read))
 
     def register(self, tool):
         if tool.name in self.tools: raise ValueError("Duplicate tool name.")
@@ -86,11 +90,22 @@ class ToolExecutor:
             if name not in self.tools: raise ValueError("Unknown tool.")
             tool = self.tools[name]
             validate(args, tool.parameters)
-            return ToolResult(call_id, "ok", await tool.handler(args))
-        except (ValueError, OSError, UnicodeError) as error:
+            content = await tool.handler(args)
+            text = json.dumps(content, ensure_ascii=False)
+            if len(text) > 16000:
+                content = {"preview": text[:8000], "truncated": True,
+                           "artifact_id": self.journal.artifact(text) if self.journal else None}
+            return ToolResult(call_id, "ok", content)
+        except (ValueError, OSError, UnicodeError, SessionError) as error:
             # OS errors can contain private absolute paths; return a safe category.
             message = str(error) if isinstance(error, ValueError) and not isinstance(error, UnicodeError) else "File operation failed."
             return ToolResult(call_id, "error", {"error": message})
+
+    async def _artifact_read(self, args):
+        if not self.journal: raise ValueError("Artifacts require an active session.")
+        text = self.journal.read_artifact(args["id"])
+        start = args.get("start", 0)
+        return {"text": text[start:start+8000], "total_chars": len(text), "start": start, "truncated": start+8000 < len(text)}
 
     async def _list(self, args):
         def work():

@@ -41,15 +41,22 @@
       ],
       "commit": {
         "subject": "feat(F03): add read-only coding agent with validated tools",
-        "lookup": "git log --fixed-strings --grep=feat(F03)"
+        "lookup": "git log --fixed-strings --grep=feat(F03)",
+        "sha": "782f6c669a2ad63120c0679a57e602026c04e3c0",
+        "remote_verified": true
       }
     },
     {
       "id": "F04",
       "spec": "04-durable-session.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F04.md"
+      ],
+      "commit": {
+        "subject": "feat(F04): persist sessions and detect uncertain tool executions",
+        "lookup": "git log --fixed-strings --grep=feat(F04)"
+      }
     },
     {
       "id": "F05",

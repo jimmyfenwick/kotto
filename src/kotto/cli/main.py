@@ -23,10 +23,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("prompt")
     run_parser.add_argument("--json", action="store_true")
     run_parser.add_argument("--max-rounds", type=int, default=12)
+    from kotto.cli.sessions import DEFAULT_ROOT
+    from kotto.session.store import SessionError
+    run_parser.add_argument("--session-root", default=DEFAULT_ROOT)
+    run_parser.add_argument("--session", help="Resume an existing session ID")
+    run_parser.add_argument("--acknowledge-unknown", action="store_true", help="After checking actual state, mark uncertain calls unknown without replay")
+    session_parser = commands.add_parser("sessions", help="Inspect local history and artifacts without contacting a model")
+    session_parser.add_argument("action", choices=["list", "show", "artifact"])
+    session_parser.add_argument("session_id", nargs="?")
+    session_parser.add_argument("artifact_id", nargs="?")
+    session_parser.add_argument("--session-root", default=DEFAULT_ROOT)
     args = parser.parse_args(argv)
     if args.command is None:
         parser.print_help()
         return 0
+    if args.command == "sessions":
+        from kotto.cli.sessions import sessions
+        try: return sessions(args)
+        except (SessionError, OSError) as error:
+            print(str(error) if isinstance(error, SessionError) else "Session file operation failed.")
+            return 2
 
     if args.command in {"chat", "run"}:
         from kotto.cli.chat import chat
@@ -40,11 +56,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ConfigurationError("max-rounds must be positive.")
                 return asyncio.run(run(settings, args))
             return asyncio.run(chat(settings, args.prompt, json_mode=args.json))
-        except ConfigurationError as error:
+        except (ConfigurationError, SessionError, OSError) as error:
+            safe_message = "Local file operation failed." if isinstance(error, OSError) else str(error)
             if args.json:
-                print(json.dumps({"event": "error", "data": {"kind": "configuration", "message": str(error), "complete": False}}))
+                print(json.dumps({"event": "error", "data": {"kind": "configuration", "message": safe_message, "complete": False}}))
             else:
-                print(str(error))
+                print(safe_message)
             return 2
         except KeyboardInterrupt:
             if args.json:

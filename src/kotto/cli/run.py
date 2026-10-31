@@ -1,13 +1,27 @@
 """Agent CLI rendering; model/tool orchestration lives in runtime."""
 import json
 import sys
+from pathlib import Path
 from kotto.model.gateway import DeepSeekGateway
 from kotto.runtime.agent import Agent
 from kotto.tools.executor import ToolExecutor
+from kotto.session.store import Journal, SessionError
 
 
 async def run(settings, args):
-    agent = Agent(DeepSeekGateway(settings), ToolExecutor(settings.workspace), max_rounds=args.max_rounds)
+    with Journal(Path(args.session_root), args.session) as store:
+        config = next((e["data"] for e in store.events if e["kind"] == "config"), None)
+        if config and config["workspace"] != str(settings.workspace):
+            raise SessionError("Session belongs to another workspace.")
+        if not config: store.append("config", {"workspace": str(settings.workspace)})
+        if args.acknowledge_unknown: store.acknowledge_unknown()
+        agent = Agent(DeepSeekGateway(settings), ToolExecutor(settings.workspace), max_rounds=args.max_rounds, journal=store)
+        if args.json: print(json.dumps({"event": "session", "data": {"session_id": store.session_id}}), flush=True)
+        else: print(f"Session: {store.session_id}", file=sys.stderr)
+        return await render(agent, args)
+
+
+async def render(agent, args):
     result = 1
     async for event in agent.run(args.prompt):
         if args.json:
