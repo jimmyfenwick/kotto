@@ -8,6 +8,7 @@ from kotto.runtime.agent import Agent
 from kotto.tools.executor import ToolExecutor
 from kotto.session.store import Journal, SessionError
 from kotto.tools.policy import Policy
+from kotto.bootstrap import create_agent
 
 
 async def run(settings, args):
@@ -32,10 +33,10 @@ async def run(settings, args):
             raise SessionError("Cannot elevate a resumed session; start a new session with explicit permissions.")
         if not config: store.append("config", {"workspace": str(settings.workspace), "allow_write": args.allow_write, "allow_shell": args.allow_shell, "ask": args.ask})
         if args.acknowledge_unknown: store.acknowledge_unknown()
-        agent = Agent(DeepSeekGateway(settings), ToolExecutor(settings.workspace, policy=policy), max_rounds=args.max_rounds, journal=store, timeout=args.timeout,max_tool_calls=args.max_tool_calls,max_tokens=args.max_total_tokens,context_window=args.context_window,context_reserve=args.context_reserve)
+        agent = create_agent(settings,policy=policy,journal=store,max_rounds=args.max_rounds,timeout=args.timeout,max_tool_calls=args.max_tool_calls,max_tokens=args.max_total_tokens,context_window=args.context_window,context_reserve=args.context_reserve,extensions=args.extension,skills=args.skill)
         if args.json: print(json.dumps({"event": "session", "data": {"session_id": store.session_id}}), flush=True)
         else: print(f"Session: {store.session_id}", file=sys.stderr)
-        return await render(agent, args)
+        async with agent:return await render(agent, args)
 
 
 async def render(agent, args):

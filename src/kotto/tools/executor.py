@@ -3,6 +3,7 @@ import asyncio
 import os
 import json
 import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -71,6 +72,9 @@ class ToolExecutor:
         register_shell(self)
 
     def register(self, tool):
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,63}',tool.name) or not callable(tool.handler) or tool.effect not in {'read','write','shell'}:
+            raise ValueError('Invalid tool definition or effect.')
+        if not isinstance(tool.parameters,dict) or tool.parameters.get('type')!='object':raise ValueError('Tool parameters must be an object schema.')
         if tool.name in self.tools: raise ValueError("Duplicate tool name.")
         self.tools[tool.name] = tool
 

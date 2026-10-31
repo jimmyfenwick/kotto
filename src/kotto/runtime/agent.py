@@ -24,8 +24,16 @@ class Agent(Controlled):
             if not journal.messages(): journal.append("message", self.messages[0])
             tools.journal = journal
         self.running = False
+        self.extensions=None
         self._init_control(timeout, max_tool_calls, max_tokens)
         self.context=ContextBuilder(tools.workspace,max_tokens=context_window,reserve=context_reserve,summarizer=self._summarize,journal=journal)
+
+    async def aclose(self):
+        await self.cancel()
+        if self.extensions:self.extensions.close()
+
+    async def __aenter__(self):return self
+    async def __aexit__(self,*args):await self.aclose()
 
     def _usage(self,data):
         for key in ['prompt_tokens','completion_tokens','total_tokens']:

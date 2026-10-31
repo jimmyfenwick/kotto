@@ -111,15 +111,22 @@
       ],
       "commit": {
         "subject": "feat(F08): manage scoped rules and compact long contexts",
-        "lookup": "git log --fixed-strings --grep=feat(F08)"
+        "lookup": "git log --fixed-strings --grep=feat(F08)",
+        "sha": "8b7d407ac72f0c1101deafd06e16d7f2ded89dd3",
+        "remote_verified": true
       }
     },
     {
       "id": "F09",
       "spec": "09-extensions-and-sdk.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F09.md"
+      ],
+      "commit": {
+        "subject": "feat(F09): expose trusted extensions skills and embedding SDK",
+        "lookup": "git log --fixed-strings --grep=feat(F09)"
+      }
     },
     {
       "id": "F10",

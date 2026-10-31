@@ -29,6 +29,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--interactive", action="store_true", help="Accept /steer TEXT and /cancel while running (TTY text mode)")
     run_parser.add_argument("--context-window",type=int,default=64000,help="Conservative byte-based input budget, not an exact tokenizer")
     run_parser.add_argument("--context-reserve",type=int,default=4096)
+    run_parser.add_argument('--extension',action='append',default=[],help='Explicit trusted Python plugin path (full host privileges)')
+    run_parser.add_argument('--skill',action='append',default=[],help='Explicit task guide file; applies to this run')
+    command_parser=commands.add_parser('command',help='Invoke an explicitly enabled extension command')
+    command_parser.add_argument('name');command_parser.add_argument('text',nargs='?',default='')
+    command_parser.add_argument('--extension',action='append',default=[])
+    command_parser.add_argument('--json',action='store_true')
     from kotto.cli.sessions import DEFAULT_ROOT
     from kotto.session.store import SessionError
     run_parser.add_argument("--session-root", default=DEFAULT_ROOT)
@@ -53,10 +59,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(str(error) if isinstance(error, SessionError) else "Session file operation failed.")
             return 2
 
-    if args.command in {"chat", "run"}:
+    if args.command in {"chat", "run", "command"}:
         from kotto.cli.chat import chat
+        from kotto.model.gateway import ModelError
         try:
             settings = Settings.from_env(os.environ)
+            if args.command=='command':
+                from kotto import create_agent
+                async def invoke():
+                    async with create_agent(settings,extensions=args.extension) as agent:
+                        value=await agent.extensions.command(args.name,args.text)
+                        print(json.dumps({'result':value},ensure_ascii=False) if args.json else str(value))
+                        return 0
+                return asyncio.run(invoke())
             if not args.prompt.strip():
                 raise ConfigurationError("Prompt must not be empty.")
             if args.command == "run":
@@ -69,7 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ConfigurationError("Invalid context window or reserve.")
                 return asyncio.run(run(settings, args))
             return asyncio.run(chat(settings, args.prompt, json_mode=args.json))
-        except (ConfigurationError, SessionError, OSError) as error:
+        except (ConfigurationError, SessionError, OSError, ModelError) as error:
             safe_message = "Local file operation failed." if isinstance(error, OSError) else str(error)
             if args.json:
                 print(json.dumps({"event": "error", "data": {"kind": "configuration", "message": safe_message, "complete": False}}))

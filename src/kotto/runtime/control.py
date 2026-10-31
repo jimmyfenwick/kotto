@@ -59,6 +59,7 @@ class Controlled:
             try:
                 async with asyncio.timeout(self.timeout):
                     async for event in source:
+                        if self.extensions:await self.extensions.emit(event)
                         if event.kind=='run_end':
                             reason=event.data['reason']
                             if reason!='completed':self._settle_pending(reason)
