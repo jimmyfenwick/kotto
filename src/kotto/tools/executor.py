@@ -66,6 +66,8 @@ class ToolExecutor:
         self.register(Tool("artifact_read", "Read a bounded slice of a current session artifact.", schema({"id": path, "start": {"type": "integer", "minimum": 0}}, ["id"]), self._artifact_read))
         from kotto.tools.editing import register_edits
         register_edits(self)
+        from kotto.tools.shell import register_shell
+        register_shell(self)
 
     def register(self, tool):
         if tool.name in self.tools: raise ValueError("Duplicate tool name.")

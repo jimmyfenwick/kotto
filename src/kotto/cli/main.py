@@ -28,6 +28,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--session-root", default=DEFAULT_ROOT)
     run_parser.add_argument("--session", help="Resume an existing session ID")
     run_parser.add_argument("--allow-write", action="store_true", help="Authorize file create/patch tools for this run")
+    run_parser.add_argument("--allow-shell", action="store_true", help="Authorize LOCAL HOST commands with full user permissions (not sandboxed)")
     run_parser.add_argument("--ask", action="store_true", help="Ask before non-read tools (interactive terminal only)")
     run_parser.add_argument("--acknowledge-unknown", action="store_true", help="After checking actual state, mark uncertain calls unknown without replay")
     session_parser = commands.add_parser("sessions", help="Inspect local history and artifacts without contacting a model")

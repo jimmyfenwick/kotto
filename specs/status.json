@@ -69,15 +69,22 @@
       ],
       "commit": {
         "subject": "feat(F05): add explicit tool policies and conflict-aware editing",
-        "lookup": "git log --fixed-strings --grep=feat(F05)"
+        "lookup": "git log --fixed-strings --grep=feat(F05)",
+        "sha": "759c70dafecd731c96e6276bcb700c8d5e4acaf6",
+        "remote_verified": true
       }
     },
     {
       "id": "F06",
       "spec": "06-command-execution.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F06.md"
+      ],
+      "commit": {
+        "subject": "feat(F06): execute and verify commands with bounded lifecycle",
+        "lookup": "git log --fixed-strings --grep=feat(F06)"
+      }
     },
     {
       "id": "F07",

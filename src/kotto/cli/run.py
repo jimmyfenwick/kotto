@@ -16,14 +16,14 @@ async def run(settings, args):
         print(f"Authorize {tool.effect} tool {tool.name}? Arguments: {json.dumps(parameters, ensure_ascii=False)[:2000]}", file=sys.stderr)
         answer = await asyncio.to_thread(input, "Type yes to authorize: ")
         return answer.strip().lower() == "yes"
-    policy = Policy(allow_write=args.allow_write, approve=approve if args.ask else None)
+    policy = Policy(allow_write=args.allow_write, allow_shell=args.allow_shell, approve=approve if args.ask else None)
     with Journal(Path(args.session_root), args.session) as store:
         config = next((e["data"] for e in store.events if e["kind"] == "config"), None)
         if config and config["workspace"] != str(settings.workspace):
             raise SessionError("Session belongs to another workspace.")
-        if config and ((args.allow_write and not config.get("allow_write")) or (args.ask and not config.get("ask"))):
+        if config and ((args.allow_write and not config.get("allow_write")) or (args.allow_shell and not config.get("allow_shell")) or (args.ask and not config.get("ask"))):
             raise SessionError("Cannot elevate a resumed session; start a new session with explicit permissions.")
-        if not config: store.append("config", {"workspace": str(settings.workspace), "allow_write": args.allow_write, "ask": args.ask})
+        if not config: store.append("config", {"workspace": str(settings.workspace), "allow_write": args.allow_write, "allow_shell": args.allow_shell, "ask": args.ask})
         if args.acknowledge_unknown: store.acknowledge_unknown()
         agent = Agent(DeepSeekGateway(settings), ToolExecutor(settings.workspace, policy=policy), max_rounds=args.max_rounds, journal=store)
         if args.json: print(json.dumps({"event": "session", "data": {"session_id": store.session_id}}), flush=True)
