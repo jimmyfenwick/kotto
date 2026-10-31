@@ -1,16 +1,16 @@
-<p align="center"><img src="docs/assets/kotto-avatar.png" width="240" alt="扣仔 KOTTO"></p>
+<p align="center"><img src="docs/assets/kotto-avatar.png" width="240" alt="KOTTO mascot"></p>
 
-# KOTTO · 扣仔
+# KOTTO
 
-**轻量、可扩展的 Python Agent Harness，用于本地代码阅读、修改和验证。**
+**A lightweight, extensible Python Agent Harness for reading, editing, and verifying local code.**
 
-KOTTO 管理模型、上下文、工具和会话，让模型能够实际搜索仓库、编辑代码和运行测试。支持 CLI 与 Python 嵌入；默认接入 DeepSeek，模型标识为 `deepseek-flash`。官方文档当前将它映射到 Flash 4.1；服务别名可能变化，支持通过配置覆盖。
+KOTTO connects models, context, tools, and sessions so an agent can search a repository, edit files, and run tests. It provides both a CLI and a Python embedding interface. The default provider is DeepSeek, using the configurable `deepseek-flash` model alias. DeepSeek currently maps this alias to Flash 4.1; provider aliases may change over time.
 
-版本：**0.1.0**。实现与证据按 [十个功能规格](specs/README.md) 组织，当前状态见 [status.json](specs/status.json)。独立 Python 实现，不是 Pi 的兼容移植。代码使用 MIT，扣仔视觉素材单独约定。
+Version: **0.1.0**. Implementation and acceptance evidence are organized into [ten feature specifications](specs/README.md), with progress recorded in [status.json](specs/status.json). KOTTO is an independent Python implementation, not a compatibility port of Pi. Code is MIT-licensed; brand assets have separate terms.
 
-## 安装
+## Installation
 
-支持 Python 3.11+，目标平台为 macOS/Linux。Windows 未验证，当前依赖 POSIX 文件锁与进程组，不宣称支持。
+Requires Python 3.11+. Supported target platforms are macOS and Linux. Windows is not supported or verified: the current implementation relies on POSIX file locks and process groups.
 
 ```bash
 git clone https://github.com/jimmyfenwick/kotto.git
@@ -21,98 +21,98 @@ python -m pip install .
 kotto --version
 ```
 
-`kotto` 与 `python -m kotto` 是相同入口。未发布 PyPI，请从源码或构建出的 wheel 安装。
+`kotto` and `python -m kotto` use the same entry point. KOTTO has not been published to PyPI; install from source or a locally built wheel.
 
-## 项目外配置凭据
+## Credentials outside the workspace
 
-推荐在 `~/.config/kotto/credentials.json` 保存，权限设为 `600`，内容如下（自行填入真实 Key，不提交仓库）：
+Keep credentials outside your repository. The recommended location is `~/.config/kotto/credentials.json`, with permissions set to `600`:
 
 ```json
-{"DEEPSEEK_API_KEY": "你的 Key"}
+{"DEEPSEEK_API_KEY": "your-api-key"}
 ```
 
-文件必须在工作区外、仅当前用户可读写，并显式通过全局选项指定。程序不自动搜索凭据文件，也不自动加载 `.env`。
+The file must be outside the configured workspace and accessible only to its owner. Select it explicitly with the global `--credentials-file` option. KOTTO does not search for credential files or automatically load `.env` files.
 
 ```bash
 kotto --credentials-file ~/.config/kotto/credentials.json doctor --json
-kotto --credentials-file ~/.config/kotto/credentials.json chat '你好'
-kotto --credentials-file ~/.config/kotto/credentials.json run '搜索并解释这个仓库的入口文件'
+kotto --credentials-file ~/.config/kotto/credentials.json chat 'Hello'
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Find and explain the entry point of this repository'
 ```
 
-`doctor` 只检查本地配置，配置齐全不代表远程认证已通过。真实请求由 `chat` 或 `run` 发起。凭据文件只在内存中读取，不复制到项目或写入会话。
+`doctor` checks local configuration only. A complete configuration does not prove that remote authentication works. `chat` and `run` make actual model requests. Credential files are read into memory; their contents are not copied into the project or written to session history.
 
-也可使用环境变量；同名环境变量覆盖文件值：
+Environment variables are also supported. An environment variable overrides the file value with the same name:
 
-| 配置 | 默认值 / 行为 |
+| Setting | Default or behavior |
 |---|---|
-| `KOTTO_API_KEY` | 优先于 `DEEPSEEK_API_KEY`；显式空值不会回退 |
-| `DEEPSEEK_API_KEY` | 没有定义 `KOTTO_API_KEY` 时使用 |
+| `KOTTO_API_KEY` | Takes precedence over `DEEPSEEK_API_KEY`; an explicitly empty value does not fall back |
+| `DEEPSEEK_API_KEY` | Used when `KOTTO_API_KEY` is not defined |
 | `KOTTO_BASE_URL` | `https://api.deepseek.com` |
-| `KOTTO_MODEL` | `deepseek-flash`，当前对应 Flash 4.1 |
-| `KOTTO_WORKSPACE` | 当前目录；必须存在 |
+| `KOTTO_MODEL` | `deepseek-flash`, currently mapped to Flash 4.1 |
+| `KOTTO_WORKSPACE` | Current directory; must exist |
 
-首版使用 Chat Completions SSE 协议，默认关闭思考模式。保留服务实际返回的思考内容与工具调用；普通终端只展示回答。没有自动重试，不跟随重定向，网络客户端直接连接，不读取代理环境变量。仅验证 DeepSeek，不承诺全部兼容服务。
+The initial provider uses Chat Completions with SSE streaming and disables thinking mode by default. Reasoning content and tool calls returned by the provider are preserved; plain terminal output displays the answer. Requests are not retried automatically, redirects are not followed, and the HTTP client connects directly without reading proxy environment variables. DeepSeek has been verified; compatibility with every OpenAI-compatible service is not claimed.
 
-## 读写与命令授权
+## File and command authorization
 
-默认只读。写入与 shell 都有工具定义，但未获授权时执行器会拒绝；模型无法自行打开权限。
+Runs are read-only by default. Write and shell tools are defined, but the executor rejects unauthorized operations. The model cannot grant itself permissions.
 
 ```bash
-kotto --credentials-file ~/.config/kotto/credentials.json run '修复这个 bug 并运行现有测试' --allow-write --allow-shell
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Fix this bug and run the existing tests' --allow-write --allow-shell
 ```
 
-- `--allow-write`：允许新建文件和精确替换。先读取 SHA256，再提供预期哈希；文件变化或替换不唯一时拒绝覆盖。新建不覆盖已有文件。
-- `--allow-shell`：明确允许在**宿主系统**执行命令，具备当前用户的进程权限，**不是沙箱**。工作目录受检查，但命令本身仍能访问宿主文件与网络。需要强隔离时，请把整个进程放进自己管理的容器或虚拟机。
-- `--ask`：逐次询问非只读操作；需要交互终端，JSON 模式及无终端时拒绝。它不能与交互式 steering 同时使用。
+- `--allow-write` authorizes file creation and exact replacement. Read the file first and supply its SHA256 hash. Changes to the file or ambiguous replacements cause a conflict. Creating a file never overwrites an existing file.
+- `--allow-shell` explicitly authorizes commands on the **local host**, with the current user's process permissions. **This is not a sandbox.** Working directories are checked, but commands can still access host files and the network. Run the entire process in a container or virtual machine you manage if you need stronger isolation.
+- `--ask` requests approval for each non-read operation. It requires an interactive terminal and rejects JSON or non-terminal use. It cannot be combined with interactive steering.
 
-文件工具拒绝工作区外路径和符号链接逃逸；默认隐藏 `.git`、`.venv`、`.kotto`、`node_modules`、环境文件与 credentials.json。源文件最多读取 1 MiB，每次最多展示 200 行。搜索最多扫描 1000 个候选文件，最多返回 100 条命中，超限会标记。
+File tools reject paths outside the workspace and symlink escapes. They hide `.git`, `.venv`, `.kotto`, `node_modules`, environment files, and `credentials.json`. Source files are limited to 1 MiB, with at most 200 lines displayed per read. Search scans at most 1,000 candidate files and returns at most 100 matches, marking truncation when a limit is reached.
 
-工具结果包含真实退出码、超时和截断信息。命令 stdout/stderr 各展示最多 6000 字节；会话附件各保留前 512 KiB，超过仍标记截断。大输出不会无限占用内存或磁盘。超时和取消会清理整个进程组，包含忽略 SIGTERM 的后代。
+Tool results include actual exit codes, timeout information, and truncation indicators. Each command output stream displays at most 6,000 bytes; session artifacts retain the first 512 KiB per stream and explicitly flag further truncation. Capture is bounded in memory and on disk. Timeout and cancellation clean up the process group, including descendants that ignore SIGTERM.
 
-## 会话与恢复
+## Sessions and recovery
 
-每次 `run` 输出一个 session ID。默认保存在 `~/.local/state/kotto/sessions`，可用 `--session-root` 修改；日志可能包含用户输入和代码，保留在本机，需自行按需求删除。
+Each `run` prints a session ID. Sessions are stored in `~/.local/state/kotto/sessions` by default; override this with `--session-root`. Logs may contain user input and source code. They stay on the local machine and can be removed according to your retention needs.
 
 ```bash
 kotto sessions list
 kotto sessions show SESSION_ID
-kotto --credentials-file ~/.config/kotto/credentials.json run '继续未完成任务' --session SESSION_ID
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Continue the unfinished task' --session SESSION_ID
 ```
 
-恢复时须使用同一工作区，不能扩大原会话的权限；如原会话允许写入，需再次显式传递相应标志。会话采用单写入者锁、版本化追加日志和执行前意图记录。进程崩溃后，未得到结果的调用保持不确定，**不会自动重放**。
+A resumed session must use the same workspace and cannot expand its original permissions. Pass the relevant flags again when resuming a session that previously allowed writes. Sessions use a single-writer lock, a versioned append-only journal, and durable intent records before tool execution. After a crash, calls without confirmed results remain uncertain and **are not replayed automatically**.
 
-检查实际文件或进程状态后，可通过 `--acknowledge-unknown` 明确确认，再恢复。确认仅记录 unknown，不把未确认操作伪装为成功。取消后的部分副作用也需要检查。工具与外部系统之间无法保证任意操作恰好执行一次。
+After inspecting the actual files or process state, use `--acknowledge-unknown` to acknowledge uncertainty and resume. This records an unknown result rather than inventing success. Inspect partial side effects after cancellation as well. Exactly-once execution cannot be guaranteed for arbitrary external operations.
 
-查看大结果可用 `kotto sessions artifact SESSION_ID ARTIFACT_ID`；Agent 可调用 `artifact_read` 分段读取当前会话附件。
+Use `kotto sessions artifact SESSION_ID ARTIFACT_ID` to inspect large results. Agents can read bounded slices of current-session artifacts through `artifact_read`.
 
-## 运行控制与上下文
+## Run control and context
 
 ```bash
-kotto --credentials-file ~/.config/kotto/credentials.json run '分析项目' --max-rounds 12 --max-tool-calls 64 --timeout 300
-kotto --credentials-file ~/.config/kotto/credentials.json run '持续处理任务' --interactive
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Analyze this project' --max-rounds 12 --max-tool-calls 64 --timeout 300
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Work through this task' --interactive
 ```
 
-交互模式接受 `/steer 补充要求` 和 `/cancel`。补充要求按顺序在下一轮生效，不重跑已执行的工具。Ctrl-C 会取消并清理。
+Interactive mode accepts `/steer additional instructions` and `/cancel`. Steering messages are applied in order before the next model round, without replaying completed tools. Ctrl-C cancels the operation and triggers cleanup.
 
-`--max-total-tokens` 按服务报告的累计用量阻止后续执行，可能在当前请求完成后超过阈值，不是硬计费上限。价格未知时不估算费用。`--max-rounds` 限制 Agent 主循环轮次；历史摘要可能额外调用模型，计入总时间与已报告的 token 用量。
+`--max-total-tokens` stops further work after cumulative provider-reported usage reaches its limit. The current request may exceed that threshold; this is not a hard billing cap. Costs are not estimated when pricing is unknown. `--max-rounds` limits the main Agent loop; history summarization can make additional model requests, which count toward total time and reported token usage.
 
-根目录 `AGENTS.md` 适用于全工作区；子目录规则仅对相关路径生效。新的或变化的规则在编辑前需要进入上下文。规则不覆盖用户的明确要求，文件和工具结果不获得更高指令优先级。
+A workspace-root `AGENTS.md` applies throughout the workspace. Nested instructions apply only to relevant paths. New or changed rules must enter the context before editing. Project rules do not override explicit user instructions, and files or tool outputs do not gain higher instruction priority.
 
-`--context-window` 默认 64000，`--context-reserve` 默认 4096，使用保守的 UTF-8 字节估计，**不是精确 tokenizer**。历史过长时由模型分段摘要，保留全部用户要求原文、近期完整工具交换及原始会话记录。必需内容仍超限或摘要失败时明确报错，不静默删约束。摘要可能遗漏事实，原始记录仍可查；恢复时还需核验实际文件状态。
+`--context-window` defaults to 64000 and `--context-reserve` to 4096. These use a conservative UTF-8 byte-based estimate, **not an exact tokenizer**. Long histories are summarized in bounded chunks while retaining all user requests verbatim, recent complete tool exchanges, and the original journal. Required content that still exceeds the budget, or a failed summary, produces an explicit error instead of silently dropping constraints. Summaries can omit facts; original records remain available, and restored tasks should verify the current file state.
 
-## 扩展与 Skill
+## Extensions and Skills
 
 ```bash
-kotto --credentials-file ~/.config/kotto/credentials.json run '调用 echo 工具' --extension examples/echo_extension.py
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Call the echo tool' --extension examples/echo_extension.py
 kotto command hello world --extension examples/echo_extension.py
-kotto --credentials-file ~/.config/kotto/credentials.json run '按指南检查项目' --skill /外部路径/SKILL.md
+kotto --credentials-file ~/.config/kotto/credentials.json run 'Review this project using the guide' --skill /external/path/SKILL.md
 ```
 
-Python 扩展是**可信宿主代码**，显式启用即允许它在当前进程运行；不自动扫描、下载或执行仓库插件，也不提供插件沙箱。注册的工具经过统一参数、权限与日志入口；插件本身仍可执行任意 Python，不能依靠工具策略隔离恶意插件。
+Python extensions are **trusted host code**. Explicitly enabling one allows it to run inside the current process. KOTTO does not automatically discover, download, or execute repository plugins, and does not provide a plugin sandbox. Registered tools use the shared validation, authorization, and journaling path, but plugin code itself can execute arbitrary Python. Tool policy cannot isolate a malicious plugin.
 
-`activate(host)` 可注册 `Tool`、命令和事件订阅，返回可选的同步清理函数。Skill 是文本指南，显式启用后作用于本次运行，并计入上下文预算。单份指南上限 64 KiB。
+`activate(host)` can register a `Tool`, commands, and event subscribers, and return an optional synchronous cleanup function. A Skill is a text guide that applies when explicitly enabled for a run and counts toward its context budget. Each guide is limited to 64 KiB.
 
-Python 嵌入示例：
+Embed KOTTO in Python:
 
 ```python
 import asyncio
@@ -123,33 +123,33 @@ from kotto import Settings, create_agent
 async def main():
     settings = Settings.from_env(os.environ)
     async with create_agent(settings) as agent:
-        async with aclosing(agent.run('搜索仓库入口')) as events:
+        async with aclosing(agent.run('Find the repository entry point')) as events:
             async for event in events:
                 print(event.kind, event.data)
 
 asyncio.run(main())
 ```
 
-提前结束消费时请使用 `aclosing` 或显式 `await stream.aclose()`，让运行立即清理；仅停止读取却不关闭，无法被即时识别，最终仍受总超时约束。更多示例见 [examples](examples/README.md)，接口约定见 [架构说明](docs/architecture.md)。
+Use `aclosing` or explicitly call `await stream.aclose()` when stopping consumption early so the run can clean up immediately. Simply stopping reads without closing the stream cannot be detected immediately; the total timeout still applies. See [examples](examples/README.md) and the [architecture guide](docs/architecture.md) for more detail.
 
-## 结构
+## Project structure
 
 ```text
 src/kotto/
-  contracts/    # 运行事件与工具结果
-  model/        # DeepSeek 流式适配及公开 Protocol
-  runtime/      # Agent 循环、取消、队列与预算
-  tools/        # 校验、权限、只读工具、原子编辑与宿主命令
-  context/      # 作用域规则、预算与非破坏性历史压缩
-  session/      # 单写入者日志、恢复与附件
-  extensions/   # 显式可信插件与 Skill
-  cli/          # 终端输入、JSON 事件和交互控制
-  config.py     # 外部配置与密钥脱敏
-  bootstrap.py  # 依赖组装及 create_agent
-specs/          # 十项规格、状态与验收证据
+  contracts/    # Model/Agent events and correlated tool results
+  model/        # DeepSeek streaming adapter and public Protocol
+  runtime/      # Agent loop, cancellation, queues, and budgets
+  tools/        # Validation, policy, reads, atomic edits, and host commands
+  context/      # Scoped rules, budgets, and non-destructive compaction
+  session/      # Single-writer journal, recovery, and artifacts
+  extensions/   # Explicit trusted plugins and text guides
+  cli/          # Terminal input, JSON events, and run controls
+  config.py     # External configuration and credential redaction
+  bootstrap.py  # Dependency assembly and create_agent
+specs/          # Ten feature specifications, status, and evidence
 ```
 
-## 测试与验收
+## Tests and acceptance
 
 ```bash
 python -m pip install '.[dev]'
@@ -159,10 +159,10 @@ ruff format --check .
 python -m build
 ```
 
-默认测试离线运行，包含本地 HTTP 流、权限、冲突、进程清理、恢复、压缩和扩展测试；不需要 Key。CI 覆盖 macOS/Linux 与 Python 3.11/3.12。真实模型验收需显式运行 [evals/run_live.py](evals/run_live.py)，会产生模型调用费用，使用合成临时仓库并独立运行检查，不修改用户项目。
+Default tests run offline and cover local HTTP streaming, permissions, conflicts, process cleanup, recovery, compaction, and extensions. They do not require an API key. CI covers macOS/Linux and Python 3.11/3.12. Live model acceptance is explicitly enabled through [evals/run_live.py](evals/run_live.py). It incurs model usage, runs independent checks in a synthetic temporary repository, and does not modify user projects.
 
-JSON 为逐行事件，区分文本增量、完整模型消息、工具结果和运行结束。`run_end.reason` 表示运行状态；**模型回答结束并不证明用户任务已通过验收**。应结合真实测试退出码与文件检查。
+JSON output is a stream of line-delimited events that distinguishes text deltas, complete model messages, tool results, and run termination. `run_end.reason` describes execution state; **a completed model answer does not prove that the user's task passed acceptance**. Check actual test exit codes and file changes.
 
-退出码：0 成功；1 模型/运行/预算错误；2 配置错误或 doctor 未就绪；130 用户取消。
+Exit codes: 0 for success; 1 for model, runtime, or budget errors; 2 for configuration errors or a not-ready `doctor` result; 130 for user cancellation.
 
-首版不包含 Web UI、多 Agent、长期记忆、插件市场、Windows 支持或生产部署。没有发布 PyPI。代码与技术文档遵循 [MIT](LICENSE)，品牌视觉遵循 [BRAND.md](BRAND.md)。
+The initial release does not include a web UI, multi-agent orchestration, long-term memory, a plugin marketplace, Windows support, or production deployment. It has not been published to PyPI. Code and technical documentation use the [MIT License](LICENSE); visual brand assets follow [BRAND.md](BRAND.md).
