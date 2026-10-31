@@ -1,1 +1,1 @@
-"""Tool registration, validation, policy, and execution. Implementation pending."""
+"""Validated tools, authorization, atomic edits and local process execution."""

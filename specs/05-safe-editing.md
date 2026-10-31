@@ -38,7 +38,7 @@
 
 预期影响：tools/policy.py、tools/executor.py、tools/builtin/patch.py、tools/builtin/write.py、cli/input.py。
 
-计划验证命令（对应测试须在本功能点实现时新增，当前未执行）：
+复验命令（实际执行结果见 specs/status.json 所引用的验收记录）：
 
 ```text
 PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_edit*.py' -v

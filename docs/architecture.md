@@ -1,105 +1,61 @@
-# KOTTO 架构说明
+# KOTTO 0.1 架构与接口
 
-状态：2026-10-31，F01 配置与 CLI、F02 DeepSeek 文本流式接入已实现并验收。其余内容为后续设计约定，进度统一见 ../specs/status.json。
+状态：实现说明。验收进度见 ../specs/status.json。公开实现采用单包 src 布局，独立使用 asyncio 与 httpx。
 
-## 1. 组织原则
+## 依赖
 
-采用单个 Python 包，每个模块通过少量公开接口封装内部行为。调用者不需要理解供应商响应格式、日志文件布局或具体终端渲染方式。`bootstrap` 创建具体实现并传入依赖，模块内部避免读取全局配置、偷偷创建客户端或连接网络。
+CLI → bootstrap.create_agent → Agent；Agent 调用 model、tools、context、session 的接口。contracts 是共享契约。模型不执行工具，日志不调度任务，终端不直接修改模型历史。插件由显式配置加载。
 
-顶层 `kotto` 暂时只提供版本信息。公共 SDK 待真实调用路径稳定后导出，不承诺未经实现验证的接口。
+| 模块 | 实际文件 | 职责 |
+|---|---|---|
+| contracts | event.py、tool.py | ModelEvent、AgentEvent、ToolResult |
+| model | gateway.py | ModelGateway Protocol、DeepSeekGateway、SSE 与错误分类 |
+| runtime | agent.py、control.py | 模型/工具循环，运行状态、队列、取消、预算 |
+| tools | executor.py、policy.py、editing.py、shell.py | 注册、参数校验、工作区读取、授权、原子编辑、宿主执行 |
+| context | builder.py | 路径规则、不可丢弃输入、分段压缩与快照 |
+| session | store.py | Journal、锁、追加写入、崩溃恢复与附件 |
+| extensions | host.py | ExtensionHost、显式加载、事件、命令、文本指南 |
+| cli | main.py、chat.py、run.py、sessions.py | 配置入口、终端/JSON 输出、控制与历史查看 |
 
-## 2. 依赖方向
+早期设计中的文件名是拆分建议；当前按实际行为合并，避免只有转发作用的空文件。
 
-```text
-bootstrap ──组装──> model / tools / context / session / extensions / runtime / cli
-cli ─────────────> runtime 的公开接口
-runtime ─────────> model / tools / context / session 的接口
-context ─────────> 显式传入的会话视图、规则文本、模型能力
-tools ───────────> 执行环境、策略、附件写入接口
-extensions ──────> 工具注册及事件订阅接口
-以上模块 ────────> contracts 中必要的公共数据契约
-```
+## 公共接口
 
-`contracts` 不依赖其他业务模块。`model` 不执行工具，`session` 不调度任务，`cli` 不直接调用模型或修改会话存储。扩展加载由组装入口完成，`runtime` 不依赖具体扩展包。避免用一个全局事件总线隐藏所有调用关系。
+- Settings.from_env(mapping, credentials_file=None)：环境或显式外部文件；凭据字段不出现在 repr。
+- create_agent(settings, model=None, policy=None, journal=None, extensions=(), skills=(), **limits)：返回可异步上下文管理的 Agent。
+- Agent.run(prompt)：异步 AgentEvent 流，一次只允许一个活动运行。
+- Agent.steer(message)、Agent.cancel()、Agent.aclose()：有序补充、取消并等待清理、关闭扩展。
+- ModelGateway.stream(messages, tools=None)：异步 ModelEvent 流；完整消息只在成功的结束标记后产出。
+- Tool(name, description, parameters, handler, effect='read')：异步 handler 返回可 JSON 序列化的 dict，effect 为 read/write/shell。
+- ToolExecutor.execute(call_id, name, args)：结构化 ToolResult；工具执行成功不等于命令退出码为零。
+- Journal(root, session_id=None)：同步上下文管理，运行时写入前持久化意图，之后持久化结果；由调用者关闭。
 
-## 3. 模块职责与内部结构
+Tool 参数校验支持对象必需字段/额外字段限制、基础类型、枚举和整数范围；不是完整 JSON Schema 引擎。扩展作者应在 handler 内补充领域语义检查。生产代码不依赖测试替身。
 
-下面的文件名是实施时的拆分建议，当前不会全部创建为空文件。
+## 模型与工具循环
 
-| 模块 | 拟内部文件 | 对外职责 | 不在该模块处理 |
-|---|---|---|---|
-| contracts | message.py、tool.py、event.py | 角色消息、内容块、调用与结果、事件与标识符 | 业务模块的私有配置 |
-| model | gateway.py、capabilities.py、providers/ | 模型请求、完整响应与流式事件 | 工具执行、终端打印 |
-| runtime | agent.py、loop.py、state.py、scheduler.py、budget.py | 运行、补充要求、取消、预算与调度 | 文件工具细节、SDK 字段转换 |
-| tools | registry.py、executor.py、policy.py、execution_host.py、builtin/ | 注册、校验、权限决策、执行、结果整理 | Agent 下一步决策 |
-| context | builder.py、project_rules.py、budget.py、compaction.py | 装配本轮输入、规则加载与压缩 | 删除原始会话、运行工具 |
-| session | store.py、journal.py、recovery.py、artifacts.py | 记录、读取、恢复、附件管理 | 盲目重试外部副作用 |
-| extensions | host.py、manifest.py、skills.py | 加载和卸载扩展，注册额外能力 | 绕过统一工具入口 |
-| cli | main.py、commands.py、renderer.py、input.py | 用户输入、事件显示、授权响应 | 模型供应商逻辑 |
+记录用户输入 → 合并排队要求 → 组装上下文 → 流式请求 → 保存完整模型消息 → 按顺序校验与执行工具 → 保存工具结果 → 下一轮。没有工具时结束。Model finished 与 Agent run_end 是不同事件。
 
-## 4. 核心数据与接口约定
+模型原生工具调用 ID 可以在不同轮重复，日志按消息顺序关联，不使用全历史 ID 集合错误消除新调用。受控取消会补齐未完成的工具结果为 cancelled/error，并提示检查部分副作用；进程崩溃后无法确认的调用仍需人工检查和明确确认，不自动重放。
 
-### 公共数据
+## 权限与持久化
 
-- `Message`：用户、模型和工具消息；内容块需支持文本、工具调用、工具结果及未来的多模态附件。
-- `ToolCall`：唯一调用 ID、工具名和待校验参数。
-- `ToolResult`：调用 ID、状态、内容、附件引用、错误原因；状态至少包含 `ok`、`error`、`cancelled`、`unknown`。
-- `AgentEvent`：文本增量、工具状态、输入排队、授权请求、用量和运行结束等对外通知。
-- `session_id` 标识会话，`run_id` 标识一次运行，`tool_call_id` 标识一次工具调用。身份与关联关系在持久化后保持不变。
+Policy 是应用授权，不是 OS 沙箱。文件工具检查相对路径、凭据/内部文件和符号链接逃逸；授权编辑仍可能与同权限外部进程发生竞态。SHA 检查与原子替换降低冲突风险，不承诺强隔离。新/变化的项目规则在修改前需进入上下文。
 
-模型消息、界面事件和持久化事实分别建模，不把进度文字直接混入模型上下文。供应商要求的不可丢失内容由模型适配保留，不在公共契约中随意裁剪。
+shell 模式必须显式授权，具备宿主用户权限；命令工作目录检查不限制命令访问其他目录。已知模型 Key 不进入命令环境，但这不能限制可信宿主代码主动读取其他凭据。强隔离由部署者在整个进程外提供。
 
-### 公开接口草案
+Journal 文件和附件使用私有权限。锁随进程退出释放；日志只有不完整尾行可修复，中间损坏拒绝恢复。意图落盘失败时不执行工具；结果写盘失败保留不确定事实。会话不保证外部副作用恰好一次。
 
-以下仅表达调用方式，完整参数与错误类型在 M1 定义：
+## 取消与上下文
 
-```python
-# ModelGateway.stream(request, cancellation) -> AsyncIterator[ModelEvent]
-# Agent.run(input) -> AsyncIterator[AgentEvent]
-# Agent.steer(message) -> awaitable[None]
-# Agent.cancel() -> awaitable[None]
-# ToolExecutor.execute(call, context) -> awaitable[ToolResult]
-# ContextBuilder.build(input) -> awaitable[ContextSnapshot]
-# SessionStore.append(event) -> awaitable[None]
-# SessionStore.load(session_id) -> awaitable[SessionView]
-```
+运行事件队列最多 64 项，补充要求最多 32 条，每条最多 64000 字符。取消时终止状态优先于尚未消费的进度；事件消费者需显式关闭或使用 aclosing，运行总超时仍然有效。文件写入取消会等待已启动的线程结束，避免遗留后台写入。
 
-取消机制使用 Python 异步任务及显式协作式取消信号，具体类型在实现时定义。异步生成器消费方退出时也须触发清理，不能留下失去控制的工具进程。用户主动取消与消费方异常退出应保留不同原因。
+预算包含模型轮数、工具数、总时间和已报告 token 用量；不提供硬远程计费上限。未知费用不填零。
 
-## 5. 运行与工具执行
+上下文通过 UTF-8 字节估计预留输出空间，保持全部用户要求原文，近期工具调用/结果成组保留。摘要按有界历史片段生成，保留决策、证据和待办；失败不改摘要状态，不删除原始日志。规则在各自 scope 下生效，显式 Skill 作用于整次运行。
 
-一个 Agent 实例同一时刻只允许一个 `run`。状态机至少覆盖空闲、请求模型、执行工具、等待用户输入，以及完成、失败、取消。预算耗尽作为明确的结束原因返回；模型结束回答不等于用户目标完成。
+## 扩展生命周期
 
-用户补充要求进入顺序队列，在下一次模型请求前合并。正在执行的写入操作不因新消息而暗中重新开始；取消则立即向模型和工具传播。轮数限制、总超时与用量累计由运行核心管理，工具自身管理单次超时和输出上限。费用限制依赖可用计价信息，无法得出准确费用时应显示未知，不伪造精确金额。
+显式 Python 文件包含同步 activate(host)，可以返回同步 cleanup。host 支持 register_tool、register_command、subscribe；订阅器可同步或异步。订阅失败使运行明确失败，不吞异常。启用插件是对代码的信任，统一工具授权不构成 Python 插件隔离。
 
-工具必须接收完整的模型调用后才能执行。统一路径为：查找工具 → 参数校验 → 权限判断 → 持久化执行意图 → 执行 → 持久化结果 → 返回模型。拒绝和失败也要有结构化结果，工具调用与结果应保持一一对应。
-
-权限策略与操作系统隔离是不同能力。路径检查或 shell 命令文本检查不能替代沙箱。写入和 shell 上线前，须明确所选执行环境及真实访问范围；普通宿主进程运行不得被标注为沙箱隔离。编辑需校验预期原内容，命令取消需管理子进程组并等待清理。
-
-## 6. 上下文与项目规则
-
-上下文装配输入包括：系统指引、适用的项目规则、用户目标、会话历史、必要摘要、工具结果及模型能力。预留输出预算，工具定义也计入输入体积。大结果保存为附件后，仅注入必要摘要与读取位置。
-
-项目规则根据文件作用域加载；外部文档与工具输出作为资料处理，不能自行提升为更高优先级指令。具体规则优先级在实现阶段写成明确契约并测试。
-
-压缩必须保留用户约束、重要决策、未完成事项、证据位置与工具消息合法性。压缩生成新的上下文视图，保留原始日志。窗口上限不足时返回可解释错误，不能悄悄丢弃用户要求。
-
-## 7. 会话、附件与恢复
-
-会话根目录由配置明确指定，拟保存 `metadata.json`、`events.jsonl` 与 `artifacts/`。会话日志包含版本和顺序号；采用单写入者锁，避免两个进程同时恢复同一会话。需要恢复保证的事件按约定持久化，流式展示可以是暂态。
-
-恢复流程重建消息与状态，检查末尾不完整日志，并找出“已开始但无结果”的工具调用。这类调用标为 `unknown`，先核验进程、工作区或外部系统状态，再决定是否继续；不会自动重放。重复读取通常可重试，外部写入必须按操作类型判断。无法保证任意外部操作恰好执行一次。
-
-附件用受控标识符引用，防止读取路径逃逸。认证信息从模型连接配置进入客户端，不作为普通会话事件保存。历史内容可能含用户代码，日志保留规则需在实现时说明。
-
-## 8. 扩展与嵌入
-
-第一阶段先实现一个真实工具注册路径，再从实际调用中稳定扩展接口。扩展可注册工具、用户命令和事件订阅；Skill 是任务指引文档，不等于可以执行代码的插件。宿主进程中的 Python 插件属于可信代码，统一工具策略不构成插件隔离。
-
-嵌入应用通过 Agent 接口调用运行核心。CLI 仅是一个使用者。启动时加载扩展；热更新和插件市场后续评估。
-
-## 9. 待定决策与下一步
-
-首个供应商已确定为 DeepSeek，凭据通过 KOTTO_API_KEY 或 DEEPSEEK_API_KEY 环境变量配置。CLI 暂用标准库 argparse。运行时校验库及隔离方案在对应切片确定。接口用实际需求验证后再固定，避免先引入多个框架。F01 不需要有效凭据即可查看帮助及未就绪报告。
-
-M1 先建立一条可验收路径：固定模型响应 → 发起搜索与读取 → 获得工具结果 → 形成带文件位置的回答。随后使用真实供应商复验同一路径。M2 引入写入和命令执行时同步建立权限、执行意图与结果记录，不能等所有工具上线后再补恢复基础。
+不自动发现插件，不下载执行第三方代码，不支持热更新。初始化失败会执行已经登记的清理；Agent.aclose 清理运行和插件。品牌资源、许可和技术文档分别维护。

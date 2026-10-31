@@ -1,1 +1,1 @@
-"""Context assembly, project rules, and compaction. Implementation pending."""
+"""Scoped instructions and non-destructive context compaction."""

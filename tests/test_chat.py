@@ -66,9 +66,19 @@ class ChatHTTPTests(unittest.TestCase):
             def do_POST(self):
                 request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 self.server.request_payload = request
-                payload = {"choices": [{"index": 0, "delta": {"content": "本地夹具回复"}, "finish_reason": None}]}
+                payload = {
+                    "choices": [
+                        {"index": 0, "delta": {"content": "本地夹具回复"}, "finish_reason": None}
+                    ]
+                }
                 end = {"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
-                body = ("data: " + json.dumps(payload, ensure_ascii=False) + "\n\ndata: " + json.dumps(end) + "\n\ndata: [DONE]\n\n").encode()
+                body = (
+                    "data: "
+                    + json.dumps(payload, ensure_ascii=False)
+                    + "\n\ndata: "
+                    + json.dumps(end)
+                    + "\n\ndata: [DONE]\n\n"
+                ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Content-Length", str(len(body)))
@@ -79,11 +89,23 @@ class ChatHTTPTests(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            env = {k: v for k, v in os.environ.items() if not k.startswith("KOTTO_") and k != "DEEPSEEK_API_KEY"}
-            env.update(PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"),
-                       KOTTO_API_KEY="fixture-secret", KOTTO_BASE_URL=f"http://127.0.0.1:{server.server_port}")
-            result = subprocess.run([sys.executable, "-m", "kotto", "chat", "你好", "--json"],
-                                    env=env, capture_output=True, text=True, timeout=5)
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if not k.startswith("KOTTO_") and k != "DEEPSEEK_API_KEY"
+            }
+            env.update(
+                PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"),
+                KOTTO_API_KEY="fixture-secret",
+                KOTTO_BASE_URL=f"http://127.0.0.1:{server.server_port}",
+            )
+            result = subprocess.run(
+                [sys.executable, "-m", "kotto", "chat", "你好", "--json"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             events = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(events[0]["data"]["text"], "本地夹具回复")

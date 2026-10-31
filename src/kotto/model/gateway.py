@@ -19,7 +19,9 @@ class ModelError(Exception):
 
 
 class ModelGateway(Protocol):
-    def stream(self, messages: list[dict], *, tools: list[dict] | None = None) -> AsyncIterator[ModelEvent]: ...
+    def stream(
+        self, messages: list[dict], *, tools: list[dict] | None = None
+    ) -> AsyncIterator[ModelEvent]: ...
 
 
 async def _sse_data(response: httpx.Response) -> AsyncIterator[str]:
@@ -52,7 +54,9 @@ class DeepSeekGateway:
         self.settings = settings
         self._client = client
 
-    async def stream(self, messages: list[dict], *, tools: list[dict] | None = None) -> AsyncIterator[ModelEvent]:
+    async def stream(
+        self, messages: list[dict], *, tools: list[dict] | None = None
+    ) -> AsyncIterator[ModelEvent]:
         if not self.settings.api_key:
             raise ModelError("configuration", "Configure KOTTO_API_KEY or DEEPSEEK_API_KEY first.")
         if not messages:
@@ -61,28 +65,49 @@ class DeepSeekGateway:
             async for event in self._stream(self._client, messages, tools):
                 yield event
         else:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15), trust_env=False) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(60, connect=15), trust_env=False
+            ) as client:
                 async for event in self._stream(client, messages, tools):
                     yield event
 
     async def _stream(self, client, messages, tools):
-        body = {"model": self.settings.model, "messages": messages, "stream": True,
-                "stream_options": {"include_usage": True}, "thinking": {"type": "disabled"}}
+        body = {
+            "model": self.settings.model,
+            "messages": messages,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            "thinking": {"type": "disabled"},
+        }
         if tools:
             body["tools"] = tools
         try:
-            async with client.stream("POST", self.settings.base_url + "/chat/completions",
-                                     json=body, headers={"Authorization": "Bearer " + self.settings.api_key}) as response:
+            async with client.stream(
+                "POST",
+                self.settings.base_url + "/chat/completions",
+                json=body,
+                headers={"Authorization": "Bearer " + self.settings.api_key},
+            ) as response:
                 if response.status_code != 200:
                     status = response.status_code
-                    kind = "authentication" if status in {401, 403} else "rate_limit" if status == 429 else "server" if status >= 500 else "request"
+                    kind = (
+                        "authentication"
+                        if status in {401, 403}
+                        else "rate_limit"
+                        if status == 429
+                        else "server"
+                        if status >= 500
+                        else "request"
+                    )
                     raise ModelError(kind, f"Model request failed with HTTP {status} ({kind}).")
                 text, reasoning, calls = "", "", {}
                 finish = None
                 async for raw in _sse_data(response):
                     if raw == "[DONE]":
                         if finish not in {"stop", "tool_calls"}:
-                            raise ModelError("incomplete", "Model response has no successful completion reason.")
+                            raise ModelError(
+                                "incomplete", "Model response has no successful completion reason."
+                            )
                         message = {"role": "assistant", "content": text or None}
                         if reasoning:
                             message["reasoning_content"] = reasoning
@@ -90,16 +115,28 @@ class DeepSeekGateway:
                             ids = set()
                             ordered = [calls[i] for i in sorted(calls)]
                             for call in ordered:
-                                if not call["id"] or not call["function"]["name"] or call["id"] in ids:
-                                    raise ModelError("protocol", "Tool call identity is incomplete or repeated.")
+                                if (
+                                    not call["id"]
+                                    or not call["function"]["name"]
+                                    or call["id"] in ids
+                                ):
+                                    raise ModelError(
+                                        "protocol", "Tool call identity is incomplete or repeated."
+                                    )
                                 if not isinstance(json.loads(call["function"]["arguments"]), dict):
-                                    raise ModelError("protocol", "Tool arguments must be a JSON object.")
+                                    raise ModelError(
+                                        "protocol", "Tool arguments must be a JSON object."
+                                    )
                                 ids.add(call["id"])
                             if finish != "tool_calls":
-                                raise ModelError("protocol", "Tool calls have an inconsistent finish reason.")
+                                raise ModelError(
+                                    "protocol", "Tool calls have an inconsistent finish reason."
+                                )
                             message["tool_calls"] = ordered
                         elif finish == "tool_calls":
-                            raise ModelError("protocol", "Missing tool calls in completed response.")
+                            raise ModelError(
+                                "protocol", "Missing tool calls in completed response."
+                            )
                         yield ModelEvent("message", message)
                         yield ModelEvent("finished", {"reason": finish})
                         return
@@ -122,26 +159,44 @@ class DeepSeekGateway:
                     delta = choice.get("delta", {})
                     if not isinstance(delta, dict):
                         raise ModelError("protocol", "Invalid model delta.")
-                    for name, kind in [("content", "text_delta"), ("reasoning_content", "reasoning_delta")]:
+                    for name, kind in [
+                        ("content", "text_delta"),
+                        ("reasoning_content", "reasoning_delta"),
+                    ]:
                         part = delta.get(name)
                         if part is not None:
                             if not isinstance(part, str):
                                 raise ModelError("protocol", "Invalid model text delta.")
-                            if name == "content": text += part
-                            else: reasoning += part
+                            if name == "content":
+                                text += part
+                            else:
+                                reasoning += part
                             if part:
                                 yield ModelEvent(kind, {"text": part})
                     for fragment in delta.get("tool_calls", []):
                         index = fragment["index"]
                         if not isinstance(index, int) or index < 0 or index > 127:
                             raise ModelError("protocol", "Invalid tool call index.")
-                        call = calls.setdefault(index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                        call = calls.setdefault(
+                            index,
+                            {
+                                "id": "",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""},
+                            },
+                        )
                         if fragment.get("type", "function") != "function":
                             raise ModelError("protocol", "Unsupported tool call type.")
-                        if fragment.get("id"): call["id"] += fragment["id"]
+                        if fragment.get("id"):
+                            call["id"] += fragment["id"]
                         for name in ["name", "arguments"]:
                             call["function"][name] += fragment.get("function", {}).get(name, "")
-                    if len(text) + len(reasoning) + sum(len(c["function"]["arguments"]) for c in calls.values()) > 4 * 1024 * 1024:
+                    if (
+                        len(text)
+                        + len(reasoning)
+                        + sum(len(c["function"]["arguments"]) for c in calls.values())
+                        > 4 * 1024 * 1024
+                    ):
                         raise ModelError("protocol", "Model output exceeds the size limit.")
                     if choice.get("finish_reason") is not None:
                         finish = choice["finish_reason"]
@@ -150,4 +205,6 @@ class DeepSeekGateway:
         except httpx.HTTPError:
             raise ModelError("network", "Model connection failed or was interrupted.") from None
         except (ValueError, KeyError, TypeError, IndexError, AttributeError):
-            raise ModelError("protocol", "Malformed model response; partial output is not complete.") from None
+            raise ModelError(
+                "protocol", "Malformed model response; partial output is not complete."
+            ) from None

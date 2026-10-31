@@ -2,7 +2,7 @@
   "schema_version": 1,
   "updated_at": "2026-10-31",
   "scope": "KOTTO v0.1 local Python Agent Harness",
-  "release_status": "NOT_READY",
+  "release_status": "READY",
   "features": [
     {
       "id": "F01",
@@ -125,15 +125,23 @@
       ],
       "commit": {
         "subject": "feat(F09): expose trusted extensions skills and embedding SDK",
-        "lookup": "git log --fixed-strings --grep=feat(F09)"
+        "lookup": "git log --fixed-strings --grep=feat(F09)",
+        "sha": "88121bac18c7b626a6c0fbce4ef32d8b99c66774",
+        "remote_verified": true
       }
     },
     {
       "id": "F10",
       "spec": "10-complete-release.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F10.md"
+      ],
+      "commit": {
+        "subject": "feat(F10): complete integrated harness and release verification",
+        "lookup": "git log --fixed-strings --grep=feat(F10)"
+      },
+      "local_acceptance": "PASS"
     }
   ],
   "open_decisions": [],

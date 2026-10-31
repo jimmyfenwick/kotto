@@ -38,7 +38,7 @@ ToolCall/ToolResult 以稳定 call_id 关联；工具状态包含 ok/error/cance
 
 预期影响：contracts/tool.py、runtime/agent.py、tools/registry.py、tools/executor.py、tools/builtin/、cli/main.py。
 
-计划验证命令（对应测试须在本功能点实现时新增，当前未执行）：
+复验命令（实际执行结果见 specs/status.json 所引用的验收记录）：
 
 ```text
 PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_agent*.py' -v

@@ -1,4 +1,5 @@
 """Tool contracts; results always correlate with the originating call."""
+
 import json
 from dataclasses import dataclass
 from typing import Literal
@@ -11,5 +12,10 @@ class ToolResult:
     content: dict
 
     def message(self):
-        return {"role": "tool", "tool_call_id": self.call_id,
-                "content": json.dumps({"status": self.status, "content": self.content}, ensure_ascii=False)}
+        return {
+            "role": "tool",
+            "tool_call_id": self.call_id,
+            "content": json.dumps(
+                {"status": self.status, "content": self.content}, ensure_ascii=False
+            ),
+        }

@@ -1,4 +1,5 @@
 """Validated tool dispatch and bounded workspace operations."""
+
 import asyncio
 import os
 import json
@@ -16,7 +17,12 @@ IGNORED = {".git", ".venv", "node_modules", ".kotto", "__pycache__"}
 
 
 def schema(properties, required):
-    return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
 
 
 def validate(value, definition):
@@ -33,7 +39,8 @@ def validate(value, definition):
         if definition.get("additionalProperties") is False and value.keys() - properties.keys():
             raise ValueError("Unexpected tool parameter.")
         for key, item in value.items():
-            if key in properties: validate(item, properties[key])
+            if key in properties:
+                validate(item, properties[key])
     if kind == "integer":
         if value < definition.get("minimum", value) or value > definition.get("maximum", value):
             raise ValueError("Tool parameter outside numeric bounds.")
@@ -48,43 +55,92 @@ class Tool:
     effect: str = "read"
 
     def definition(self):
-        return {"type": "function", "function": {"name": self.name, "description": self.description, "parameters": self.parameters}}
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            },
+        }
 
 
 class ToolExecutor:
     def __init__(self, workspace: Path, *, policy=None):
         from kotto.tools.policy import Policy
+
         self.policy = policy or Policy()
         self.workspace = workspace.resolve()
-        if not self.workspace.is_dir(): raise ValueError("Workspace must exist.")
+        if not self.workspace.is_dir():
+            raise ValueError("Workspace must exist.")
         self.tools = {}
         self.journal = None
         self.observed_paths = set()
+        self.reviewed_rules = {}
         path = {"type": "string"}
         number = {"type": "integer", "minimum": 1, "maximum": 2000}
-        self.register(Tool("list", "List a workspace directory. No recursive scan.", schema({"path": path}, []), self._list))
-        self.register(Tool("read", "Read UTF-8 source with exact line numbers. Maximum 200 lines per call.", schema({"path": path, "start": number, "limit": number}, ["path"]), self._read))
-        self.register(Tool("search", "Find literal text in at most 1000 source files; returns paths and line numbers.", schema({"query": {"type": "string"}}, ["query"]), self._search))
-        self.register(Tool("artifact_read", "Read a bounded slice of a current session artifact.", schema({"id": path, "start": {"type": "integer", "minimum": 0}}, ["id"]), self._artifact_read))
+        self.register(
+            Tool(
+                "list",
+                "List a workspace directory. No recursive scan.",
+                schema({"path": path}, []),
+                self._list,
+            )
+        )
+        self.register(
+            Tool(
+                "read",
+                "Read UTF-8 source with exact line numbers. Maximum 200 lines per call.",
+                schema({"path": path, "start": number, "limit": number}, ["path"]),
+                self._read,
+            )
+        )
+        self.register(
+            Tool(
+                "search",
+                "Find literal text in at most 1000 source files; returns paths and line numbers.",
+                schema({"query": {"type": "string"}}, ["query"]),
+                self._search,
+            )
+        )
+        self.register(
+            Tool(
+                "artifact_read",
+                "Read a bounded slice of a current session artifact.",
+                schema({"id": path, "start": {"type": "integer", "minimum": 0}}, ["id"]),
+                self._artifact_read,
+            )
+        )
         from kotto.tools.editing import register_edits
+
         register_edits(self)
         from kotto.tools.shell import register_shell
+
         register_shell(self)
 
     def register(self, tool):
-        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,63}',tool.name) or not callable(tool.handler) or tool.effect not in {'read','write','shell'}:
-            raise ValueError('Invalid tool definition or effect.')
-        if not isinstance(tool.parameters,dict) or tool.parameters.get('type')!='object':raise ValueError('Tool parameters must be an object schema.')
-        if tool.name in self.tools: raise ValueError("Duplicate tool name.")
+        if (
+            not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", tool.name)
+            or not callable(tool.handler)
+            or tool.effect not in {"read", "write", "shell"}
+        ):
+            raise ValueError("Invalid tool definition or effect.")
+        if not isinstance(tool.parameters, dict) or tool.parameters.get("type") != "object":
+            raise ValueError("Tool parameters must be an object schema.")
+        if tool.name in self.tools:
+            raise ValueError("Duplicate tool name.")
         self.tools[tool.name] = tool
 
-    def definitions(self): return [tool.definition() for tool in self.tools.values()]
+    def definitions(self):
+        return [tool.definition() for tool in self.tools.values()]
 
     def path(self, relative):
         raw = Path(relative)
-        if raw.is_absolute() or ".." in raw.parts: raise ValueError("Path must be relative to workspace.")
+        if raw.is_absolute() or ".." in raw.parts:
+            raise ValueError("Path must be relative to workspace.")
         result = (self.workspace / raw).resolve()
-        if not result.is_relative_to(self.workspace): raise ValueError("Path escapes workspace.")
+        if not result.is_relative_to(self.workspace):
+            raise ValueError("Path escapes workspace.")
         parts = result.relative_to(self.workspace).parts
         if any(p in IGNORED or p.startswith(".env") or p == "credentials.json" for p in parts):
             raise ValueError("Internal or credential path is not available to tools.")
@@ -92,44 +148,73 @@ class ToolExecutor:
         return result
 
     def _text(self, path):
-        if not path.is_file(): raise ValueError("Not a regular file.")
-        with path.open("rb") as handle: data = handle.read(MAX_FILE + 1)
-        if len(data) > MAX_FILE: raise ValueError("File exceeds 1 MiB; use a smaller file.")
-        if b"\0" in data: raise ValueError("Binary file is not supported.")
+        if not path.is_file():
+            raise ValueError("Not a regular file.")
+        with path.open("rb") as handle:
+            data = handle.read(MAX_FILE + 1)
+        if len(data) > MAX_FILE:
+            raise ValueError("File exceeds 1 MiB; use a smaller file.")
+        if b"\0" in data:
+            raise ValueError("Binary file is not supported.")
         return data.decode("utf-8")
 
     async def execute(self, call_id, name, args):
         try:
-            if name not in self.tools: raise ValueError("Unknown tool.")
+            if name not in self.tools:
+                raise ValueError("Unknown tool.")
             tool = self.tools[name]
             validate(args, tool.parameters)
-            if not await self.policy.authorize(tool, args): raise ValueError("Permission denied by tool policy.")
+            if not await self.policy.authorize(tool, args):
+                raise ValueError("Permission denied by tool policy.")
             content = await tool.handler(args)
             text = json.dumps(content, ensure_ascii=False)
             if len(text) > 16000:
-                content = {"preview": text[:8000], "truncated": True,
-                           "artifact_id": self.journal.artifact(text) if self.journal else None}
+                content = {
+                    "preview": text[:8000],
+                    "truncated": True,
+                    "artifact_id": self.journal.artifact(text) if self.journal else None,
+                }
             return ToolResult(call_id, "ok", content)
         except (ValueError, OSError, UnicodeError, SessionError) as error:
             # OS errors can contain private absolute paths; return a safe category.
-            message = str(error) if isinstance(error, ValueError) and not isinstance(error, UnicodeError) else "File operation failed."
+            message = (
+                str(error)
+                if isinstance(error, ValueError) and not isinstance(error, UnicodeError)
+                else "File operation failed."
+            )
             return ToolResult(call_id, "error", {"error": message})
 
     async def _artifact_read(self, args):
-        if not self.journal: raise ValueError("Artifacts require an active session.")
+        if not self.journal:
+            raise ValueError("Artifacts require an active session.")
         text = self.journal.read_artifact(args["id"])
         start = args.get("start", 0)
-        return {"text": text[start:start+8000], "total_chars": len(text), "start": start, "truncated": start+8000 < len(text)}
+        return {
+            "text": text[start : start + 8000],
+            "total_chars": len(text),
+            "start": start,
+            "truncated": start + 8000 < len(text),
+        }
 
     async def _list(self, args):
         def work():
             directory = self.path(args.get("path", "."))
             entries = []
             for p in sorted(directory.iterdir()):
-                if p.is_symlink() or p.name in IGNORED or p.name.startswith(".env") or p.name == "credentials.json": continue
-                entries.append({"path": str(p.relative_to(self.workspace)), "directory": p.is_dir()})
-                if len(entries) >= 200: return {"entries": entries, "truncated": True}
+                if (
+                    p.is_symlink()
+                    or p.name in IGNORED
+                    or p.name.startswith(".env")
+                    or p.name == "credentials.json"
+                ):
+                    continue
+                entries.append(
+                    {"path": str(p.relative_to(self.workspace)), "directory": p.is_dir()}
+                )
+                if len(entries) >= 200:
+                    return {"entries": entries, "truncated": True}
             return {"entries": entries, "truncated": False}
+
         return await asyncio.to_thread(work)
 
     async def _read(self, args):
@@ -138,32 +223,53 @@ class ToolExecutor:
             text = self._text(p)
             lines = text.splitlines()
             start, limit = args.get("start", 1), min(args.get("limit", 200), 200)
-            chosen = lines[start-1:start-1+limit]
-            return {"path": str(p.relative_to(self.workspace)), "sha256": hashlib.sha256(text.encode()).hexdigest(), "start": start,
-                    "text": "\n".join(f"{i}: {line}" for i, line in enumerate(chosen, start)),
-                    "total_lines": len(lines), "truncated": start-1+len(chosen) < len(lines)}
+            chosen = lines[start - 1 : start - 1 + limit]
+            return {
+                "path": str(p.relative_to(self.workspace)),
+                "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                "start": start,
+                "text": "\n".join(f"{i}: {line}" for i, line in enumerate(chosen, start)),
+                "total_lines": len(lines),
+                "truncated": start - 1 + len(chosen) < len(lines),
+            }
+
         return await asyncio.to_thread(work)
 
     async def _search(self, args):
         def work():
-            if not args["query"]: raise ValueError("Search query must not be empty.")
+            if not args["query"]:
+                raise ValueError("Search query must not be empty.")
             hits, scanned, skipped = [], 0, 0
             for base, dirs, files in os.walk(self.workspace, followlinks=False):
-                dirs[:] = sorted(d for d in dirs if d not in IGNORED and not Path(base, d).is_symlink())
+                dirs[:] = sorted(
+                    d for d in dirs if d not in IGNORED and not Path(base, d).is_symlink()
+                )
                 for filename in sorted(files):
-                    if filename.startswith(".env") or filename == "credentials.json": continue
+                    if filename.startswith(".env") or filename == "credentials.json":
+                        continue
                     p = Path(base, filename)
-                    if p.is_symlink(): continue
+                    if p.is_symlink():
+                        continue
                     scanned += 1
-                    if scanned > 1000: return {"hits": hits, "truncated": True, "skipped": skipped}
-                    try: lines = self._text(p).splitlines()
+                    if scanned > 1000:
+                        return {"hits": hits, "truncated": True, "skipped": skipped}
+                    try:
+                        lines = self._text(p).splitlines()
                     except (ValueError, OSError, UnicodeError):
                         skipped += 1
                         continue
                     for i, line in enumerate(lines, 1):
                         if args["query"] in line:
                             self.observed_paths.add(str(p.relative_to(self.workspace)))
-                            hits.append({"path": str(p.relative_to(self.workspace)), "line": i, "text": line[:500]})
-                            if len(hits) >= 100: return {"hits": hits, "truncated": True, "skipped": skipped}
+                            hits.append(
+                                {
+                                    "path": str(p.relative_to(self.workspace)),
+                                    "line": i,
+                                    "text": line[:500],
+                                }
+                            )
+                            if len(hits) >= 100:
+                                return {"hits": hits, "truncated": True, "skipped": skipped}
             return {"hits": hits, "truncated": False, "skipped": skipped}
+
         return await asyncio.to_thread(work)

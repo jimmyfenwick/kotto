@@ -1,165 +1,168 @@
-<p align="center">
-  <img src="docs/assets/kotto-avatar.png" width="240" alt="扣仔 KOTTO 品牌形象">
-</p>
+<p align="center"><img src="docs/assets/kotto-avatar.png" width="240" alt="扣仔 KOTTO"></p>
 
 # KOTTO · 扣仔
 
-**一个以 Python 构建的轻量、可扩展 Agent Harness。**
+**轻量、可扩展的 Python Agent Harness，用于本地代码阅读、修改和验证。**
 
-KOTTO 为模型提供上下文、工具与执行环境，管理一次任务从用户输入、模型响应、工具调用到结果返回的全过程。首个应用场景是本地代码仓库中的阅读、修改与验证。
+KOTTO 管理模型、上下文、工具和会话，让模型能够实际搜索仓库、编辑代码和运行测试。支持 CLI 与 Python 嵌入；默认接入 DeepSeek，模型标识为 `deepseek-flash`。官方文档当前将它映射到 Flash 4.1；服务别名可能变化，支持通过配置覆盖。
 
-项目借鉴 Pi 的模块化与可扩展思路，独立设计 Python 实现；目前不是 Pi 的兼容实现或移植版本。
+版本：**0.1.0**。实现与证据按 [十个功能规格](specs/README.md) 组织，当前状态见 [status.json](specs/status.json)。独立 Python 实现，不是 Pi 的兼容移植。代码使用 MIT，扣仔视觉素材单独约定。
 
-> 当前状态：F01 工程与 CLI、F02 DeepSeek 流式对话已完成验收。Agent 工具循环尚未实现。已确定首个模型服务为 DeepSeek。完整首版按 [十个功能规格](specs/README.md) 逐项交付；其他能力均为计划。
+## 安装
 
-## 项目要解决什么
-
-模型可以提出行动，但程序仍需要负责工具如何执行、执行结果如何保存、上下文如何组织，以及用户如何中断和接管任务。
-
-KOTTO 把这些职责组织成可嵌入的运行核心。第一版通过 CLI 使用；未来其他应用可以调用同一个核心，而不必依赖终端界面。
-
-## 第一版范围
-
-- 接入一家模型服务，支持流式文本、工具调用和取消。
-- 在指定工作目录中读取、搜索、修改文件，并执行验证命令。
-- 管理模型与工具之间的执行循环，限制轮数、时间和资源用量。
-- 加载项目规则，控制上下文体积，保留任务目标与重要约束。
-- 保存会话和工具结果，识别中断后的不确定执行状态。
-- 提供交互式 CLI 和结构化事件输出。
-
-多 Agent 调度、Web 界面、远程部署、插件市场与长期记忆属于后续候选能力，尚未承诺实现。
-
-## 项目结构
-
-```text
-kotto/
-├── README.md
-├── pyproject.toml            # 包元数据与构建配置
-├── .gitignore
-├── specs/                   # 十个功能点规格、实施状态和验收证据
-├── LICENSE                  # 代码与技术文档的 MIT 许可
-├── BRAND.md                 # 品牌素材单独使用约定
-├── docs/
-│   ├── architecture.md      # 模块职责、依赖、执行与恢复约定
-│   └── assets/
-│       └── kotto-avatar.png # README 使用的品牌资源
-├── src/
-│   └── kotto/
-│       ├── __init__.py
-│       ├── contracts/      # 跨模块消息、调用结果与事件契约
-│       ├── model/          # 模型适配、流式解析与能力描述
-│       ├── runtime/        # 执行循环、状态与任务调度
-│       ├── tools/          # 工具注册、校验、权限与执行
-│       ├── context/        # 上下文装配、项目规则与历史压缩
-│       ├── session/        # 日志、附件与恢复
-│       ├── extensions/     # 扩展及 Skill 加载，后续实现
-│       ├── cli/            # 命令行输入、渲染与交互
-│       └── bootstrap.py    # 将配置与具体实现组装到一起
-├── tests/
-│   ├── README.md           # 后续测试范围与原则
-│   └── fixtures/           # 小型测试仓库与固定响应
-├── evals/
-│   └── README.md           # 真实任务验收案例与评估口径
-└── examples/
-    └── README.md           # 可运行示例的建设计划
-```
-
-当前模块目录仅包含包声明，不预先建立大量空的实现文件。各模块内部拟拆分的文件、职责与接口见 [架构说明](docs/architecture.md)。
-
-## 核心模块
-
-| 模块 | 负责什么 | 主要输出 |
-|---|---|---|
-| `model` | 与模型服务通信，统一流式事件 | 文本、完整工具调用、结束原因、用量 |
-| `runtime` | 决定任务下一步做什么 | Agent 事件与运行结果 |
-| `tools` | 在权限与执行环境约束下执行操作 | 结构化工具结果 |
-| `context` | 选择并组织本轮模型可见的信息 | 本轮模型输入 |
-| `session` | 记录事实、保存附件、恢复历史 | 会话视图与未确认执行项 |
-| `extensions` | 注册额外工具、指引与事件订阅 | 受公开接口约束的扩展能力 |
-| `cli` | 接收用户操作并展示进度 | 终端交互或 JSON 事件输出 |
-
-## 一次任务如何运行
-
-```mermaid
-flowchart TD
-    A[用户输入] --> B[记录用户消息]
-    B --> C[构建本轮上下文]
-    C --> D[请求模型]
-    D --> E{是否有完整工具调用}
-    E -->|有| F[参数校验与权限判断]
-    F --> G[执行工具并记录结果]
-    G --> C
-    E -->|无| H[结束本次运行]
-```
-
-权限拒绝、工具错误、超时和取消均须显式返回状态。模型完成回答与用户任务验收通过是两个不同事实；只有实际运行的检查才能成为验证证据。
-
-## 技术取舍
-
-- Python 3.11+，使用 `asyncio` 管理异步工作；阻塞文件操作和外部进程需要适当隔离，避免阻塞事件循环。
-- 采用单包 `src` 布局，先保持模块清晰；出现独立复用需求后再考虑拆包。
-- 接口使用类型标注与必要的 `Protocol`；外部输入仍需运行时校验。
-- 第一版单进程、单会话单写入者；工具默认按顺序执行。
-- 会话计划使用追加式 JSONL 日志，大型输出独立保存为附件。
-- 模型 SDK、CLI 渲染库和参数校验库在对应实现阶段选择；F02 本地实现使用 httpx 0.28.1；当前没有模型 SDK 或额外 CLI 框架。
-
-## 安装与当前可用命令
-
-需要 Python 3.11+。建议在虚拟环境中安装：
+支持 Python 3.11+，目标平台为 macOS/Linux。Windows 未验证，当前依赖 POSIX 文件锁与进程组，不宣称支持。
 
 ```bash
+git clone https://github.com/jimmyfenwick/kotto.git
+cd kotto
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install .
 kotto --version
-kotto doctor --json
 ```
 
-`python -m kotto` 与 `kotto` 是同一 CLI。无参数显示帮助；当前提供版本、`doctor` 和 `chat`，还没有 Agent `run` 命令。
+`kotto` 与 `python -m kotto` 是相同入口。未发布 PyPI，请从源码或构建出的 wheel 安装。
 
-`doctor` 只检查本地配置，不联网、不验证 Key 有效性。配置齐全时返回 0；缺少 Key、工作目录不存在或格式错误时返回 2。`remote_verified` 始终为 false。
+## 项目外配置凭据
 
-## DeepSeek 配置
+推荐在 `~/.config/kotto/credentials.json` 保存，权限设为 `600`，内容如下（自行填入真实 Key，不提交仓库）：
+
+```json
+{"DEEPSEEK_API_KEY": "你的 Key"}
+```
+
+文件必须在工作区外、仅当前用户可读写，并显式通过全局选项指定。程序不自动搜索凭据文件，也不自动加载 `.env`。
 
 ```bash
-export DEEPSEEK_API_KEY='在本机填入你的 Key'
-export KOTTO_MODEL=deepseek-flash
-export KOTTO_WORKSPACE=.
-kotto doctor
+kotto --credentials-file ~/.config/kotto/credentials.json doctor --json
+kotto --credentials-file ~/.config/kotto/credentials.json chat '你好'
+kotto --credentials-file ~/.config/kotto/credentials.json run '搜索并解释这个仓库的入口文件'
 ```
 
-- `KOTTO_API_KEY`：如果定义，优先于 `DEEPSEEK_API_KEY`；显式空值不会回退。
-- `KOTTO_BASE_URL`：默认 `https://api.deepseek.com`，仅接受不带认证信息、查询串和片段的 HTTP(S) 地址。
-- `KOTTO_MODEL`：默认 `deepseek-flash`（当前对应 Flash 4.1），可改为服务支持的其他模型。
-- `KOTTO_WORKSPACE`：默认当前目录，必须为已存在目录。
+`doctor` 只检查本地配置，配置齐全不代表远程认证已通过。真实请求由 `chat` 或 `run` 发起。凭据文件只在内存中读取，不复制到项目或写入会话。
 
-[.env.example](.env.example) 仅供参考，程序不自动加载 `.env`。不要把真实 Key 提交到 Git。默认地址与模型名依据 [DeepSeek 官方接入文档](https://api-docs.deepseek.com/)；这是配置默认值，不代表当前已实现模型调用。
+也可使用环境变量；同名环境变量覆盖文件值：
 
-## 开发与进度
+| 配置 | 默认值 / 行为 |
+|---|---|
+| `KOTTO_API_KEY` | 优先于 `DEEPSEEK_API_KEY`；显式空值不会回退 |
+| `DEEPSEEK_API_KEY` | 没有定义 `KOTTO_API_KEY` 时使用 |
+| `KOTTO_BASE_URL` | `https://api.deepseek.com` |
+| `KOTTO_MODEL` | `deepseek-flash`，当前对应 Flash 4.1 |
+| `KOTTO_WORKSPACE` | 当前目录；必须存在 |
 
-运行当前测试：
+首版使用 Chat Completions SSE 协议，默认关闭思考模式。保留服务实际返回的思考内容与工具调用；普通终端只展示回答。没有自动重试，不跟随重定向，网络客户端直接连接，不读取代理环境变量。仅验证 DeepSeek，不承诺全部兼容服务。
+
+## 读写与命令授权
+
+默认只读。写入与 shell 都有工具定义，但未获授权时执行器会拒绝；模型无法自行打开权限。
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+kotto --credentials-file ~/.config/kotto/credentials.json run '修复这个 bug 并运行现有测试' --allow-write --allow-shell
 ```
 
-[规格索引](specs/README.md) 列出十个功能点及依赖，[实施状态](specs/status.json) 记录验收进度。F01 提交同时包含现有骨架与全部规格；后续每项完成并验证后单独提交 GitHub。最后一项必须通过安装、真实模型、工具及代码任务的集成验收，才能称为完整首版。
+- `--allow-write`：允许新建文件和精确替换。先读取 SHA256，再提供预期哈希；文件变化或替换不唯一时拒绝覆盖。新建不覆盖已有文件。
+- `--allow-shell`：明确允许在**宿主系统**执行命令，具备当前用户的进程权限，**不是沙箱**。工作目录受检查，但命令本身仍能访问宿主文件与网络。需要强隔离时，请把整个进程放进自己管理的容器或虚拟机。
+- `--ask`：逐次询问非只读操作；需要交互终端，JSON 模式及无终端时拒绝。它不能与交互式 steering 同时使用。
 
-F02 流式对话：
+文件工具拒绝工作区外路径和符号链接逃逸；默认隐藏 `.git`、`.venv`、`.kotto`、`node_modules`、环境文件与 credentials.json。源文件最多读取 1 MiB，每次最多展示 200 行。搜索最多扫描 1000 个候选文件，最多返回 100 条命中，超限会标记。
+
+工具结果包含真实退出码、超时和截断信息。命令 stdout/stderr 各展示最多 6000 字节；会话附件各保留前 512 KiB，超过仍标记截断。大输出不会无限占用内存或磁盘。超时和取消会清理整个进程组，包含忽略 SIGTERM 的后代。
+
+## 会话与恢复
+
+每次 `run` 输出一个 session ID。默认保存在 `~/.local/state/kotto/sessions`，可用 `--session-root` 修改；日志可能包含用户输入和代码，保留在本机，需自行按需求删除。
 
 ```bash
-kotto chat '只回复 KOTTO_OK'
-kotto chat '你好' --json
+kotto sessions list
+kotto sessions show SESSION_ID
+kotto --credentials-file ~/.config/kotto/credentials.json run '继续未完成任务' --session SESSION_ID
 ```
 
-JSON 输出为逐行事件，区分 text_delta、reasoning_delta、usage、message、finished、error。`message` 仅在完整成功终止后产生；中断或长度耗尽不视为完成。chat 退出码为：0 成功、1 模型/协议错误、2 配置错误、130 用户取消。默认关闭思考模式；保留服务实际返回的思考内容，但普通文本模式只显示最终回答。
+恢复时须使用同一工作区，不能扩大原会话的权限；如原会话允许写入，需再次显式传递相应标志。会话采用单写入者锁、版本化追加日志和执行前意图记录。进程崩溃后，未得到结果的调用保持不确定，**不会自动重放**。
 
-2026-10-31 已完成真实 DeepSeek smoke：请求 `deepseek-flash`，收到预期短回复并正常结束，用量合计 19 tokens。官方文档当前将该标识映射到 DeepSeek-V4.1-Flash-1017；它是可变化的服务别名，不是固定版本锁定。后续接入服务时需复核映射。
+检查实际文件或进程状态后，可通过 `--acknowledge-unknown` 明确确认，再恢复。确认仅记录 unknown，不把未确认操作伪装为成功。取消后的部分副作用也需要检查。工具与外部系统之间无法保证任意操作恰好执行一次。
 
-下一项 F03：只读工具与 Agent 执行循环。
+查看大结果可用 `kotto sessions artifact SESSION_ID ARTIFACT_ID`；Agent 可调用 `artifact_read` 分段读取当前会话附件。
 
-## 品牌与许可
+## 运行控制与上下文
 
-扣仔形象采用用户选定的第 04 版。本仓库保留 README 所依赖的头像副本；完整品牌源素材位于工作区的 `04-影响力/00-扣仔品牌`。
+```bash
+kotto --credentials-file ~/.config/kotto/credentials.json run '分析项目' --max-rounds 12 --max-tool-calls 64 --timeout 300
+kotto --credentials-file ~/.config/kotto/credentials.json run '持续处理任务' --interactive
+```
 
-代码与技术文档使用 [MIT](LICENSE)。扣仔品牌视觉素材不在代码 MIT 授权范围内，参见 [品牌使用约定](BRAND.md)。
+交互模式接受 `/steer 补充要求` 和 `/cancel`。补充要求按顺序在下一轮生效，不重跑已执行的工具。Ctrl-C 会取消并清理。
+
+`--max-total-tokens` 按服务报告的累计用量阻止后续执行，可能在当前请求完成后超过阈值，不是硬计费上限。价格未知时不估算费用。`--max-rounds` 限制 Agent 主循环轮次；历史摘要可能额外调用模型，计入总时间与已报告的 token 用量。
+
+根目录 `AGENTS.md` 适用于全工作区；子目录规则仅对相关路径生效。新的或变化的规则在编辑前需要进入上下文。规则不覆盖用户的明确要求，文件和工具结果不获得更高指令优先级。
+
+`--context-window` 默认 64000，`--context-reserve` 默认 4096，使用保守的 UTF-8 字节估计，**不是精确 tokenizer**。历史过长时由模型分段摘要，保留全部用户要求原文、近期完整工具交换及原始会话记录。必需内容仍超限或摘要失败时明确报错，不静默删约束。摘要可能遗漏事实，原始记录仍可查；恢复时还需核验实际文件状态。
+
+## 扩展与 Skill
+
+```bash
+kotto --credentials-file ~/.config/kotto/credentials.json run '调用 echo 工具' --extension examples/echo_extension.py
+kotto command hello world --extension examples/echo_extension.py
+kotto --credentials-file ~/.config/kotto/credentials.json run '按指南检查项目' --skill /外部路径/SKILL.md
+```
+
+Python 扩展是**可信宿主代码**，显式启用即允许它在当前进程运行；不自动扫描、下载或执行仓库插件，也不提供插件沙箱。注册的工具经过统一参数、权限与日志入口；插件本身仍可执行任意 Python，不能依靠工具策略隔离恶意插件。
+
+`activate(host)` 可注册 `Tool`、命令和事件订阅，返回可选的同步清理函数。Skill 是文本指南，显式启用后作用于本次运行，并计入上下文预算。单份指南上限 64 KiB。
+
+Python 嵌入示例：
+
+```python
+import asyncio
+import os
+from contextlib import aclosing
+from kotto import Settings, create_agent
+
+async def main():
+    settings = Settings.from_env(os.environ)
+    async with create_agent(settings) as agent:
+        async with aclosing(agent.run('搜索仓库入口')) as events:
+            async for event in events:
+                print(event.kind, event.data)
+
+asyncio.run(main())
+```
+
+提前结束消费时请使用 `aclosing` 或显式 `await stream.aclose()`，让运行立即清理；仅停止读取却不关闭，无法被即时识别，最终仍受总超时约束。更多示例见 [examples](examples/README.md)，接口约定见 [架构说明](docs/architecture.md)。
+
+## 结构
+
+```text
+src/kotto/
+  contracts/    # 运行事件与工具结果
+  model/        # DeepSeek 流式适配及公开 Protocol
+  runtime/      # Agent 循环、取消、队列与预算
+  tools/        # 校验、权限、只读工具、原子编辑与宿主命令
+  context/      # 作用域规则、预算与非破坏性历史压缩
+  session/      # 单写入者日志、恢复与附件
+  extensions/   # 显式可信插件与 Skill
+  cli/          # 终端输入、JSON 事件和交互控制
+  config.py     # 外部配置与密钥脱敏
+  bootstrap.py  # 依赖组装及 create_agent
+specs/          # 十项规格、状态与验收证据
+```
+
+## 测试与验收
+
+```bash
+python -m pip install '.[dev]'
+python -m unittest discover -s tests -v
+ruff check .
+ruff format --check .
+python -m build
+```
+
+默认测试离线运行，包含本地 HTTP 流、权限、冲突、进程清理、恢复、压缩和扩展测试；不需要 Key。CI 覆盖 macOS/Linux 与 Python 3.11/3.12。真实模型验收需显式运行 [evals/run_live.py](evals/run_live.py)，会产生模型调用费用，使用合成临时仓库并独立运行检查，不修改用户项目。
+
+JSON 为逐行事件，区分文本增量、完整模型消息、工具结果和运行结束。`run_end.reason` 表示运行状态；**模型回答结束并不证明用户任务已通过验收**。应结合真实测试退出码与文件检查。
+
+退出码：0 成功；1 模型/运行/预算错误；2 配置错误或 doctor 未就绪；130 用户取消。
+
+首版不包含 Web UI、多 Agent、长期记忆、插件市场、Windows 支持或生产部署。没有发布 PyPI。代码与技术文档遵循 [MIT](LICENSE)，品牌视觉遵循 [BRAND.md](BRAND.md)。

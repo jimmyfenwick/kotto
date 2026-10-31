@@ -1,1 +1,1 @@
-"""Shared model events; tool and Agent contracts are added with their features."""
+"""Shared model/Agent events and correlated tool results."""

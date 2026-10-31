@@ -1,1 +1,1 @@
-"""Session persistence, artifacts, and recovery. Implementation pending."""
+"""Single-writer journals, recovery and opaque artifacts."""

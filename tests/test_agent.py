@@ -9,12 +9,26 @@ from kotto.tools.executor import ToolExecutor
 
 
 class ReaderModel:
-    def __init__(self): self.turn = 0
+    def __init__(self):
+        self.turn = 0
+
     async def stream(self, messages, **kwargs):
         self.turn += 1
         if self.turn < 3:
-            name, args = ("search", {"query": "answer"}) if self.turn == 1 else ("read", {"path": "a.py"})
-            message = {"role": "assistant", "content": None, "tool_calls": [{"id": str(self.turn), "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}]}
+            name, args = (
+                ("search", {"query": "answer"}) if self.turn == 1 else ("read", {"path": "a.py"})
+            )
+            message = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": str(self.turn),
+                        "type": "function",
+                        "function": {"name": name, "arguments": json.dumps(args)},
+                    }
+                ],
+            }
         else:
             self.result = json.loads(messages[-1]["content"])
             message = {"role": "assistant", "content": "a.py:1 answer = 42"}

@@ -1,1 +1,1 @@
-"""Agent execution loop, scheduling, and state management. Implementation pending."""
+"""Sequential Agent execution and bounded run control."""

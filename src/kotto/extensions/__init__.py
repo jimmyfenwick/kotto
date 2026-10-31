@@ -1,1 +1,1 @@
-"""Extension and skill loading. Implementation pending."""
+"""Explicit trusted Python extensions and text guides."""

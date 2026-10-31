@@ -18,12 +18,20 @@ SECRET = "test-only-kotto-secret-do-not-print"
 
 class CLITests(unittest.TestCase):
     def run_cli(self, *args, settings=None):
-        env = {k: v for k, v in os.environ.items()
-               if not k.startswith("KOTTO_") and k != "DEEPSEEK_API_KEY"}
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith("KOTTO_") and k != "DEEPSEEK_API_KEY"
+        }
         env["PYTHONPATH"] = str(ROOT / "src")
         env.update(settings or {})
-        return subprocess.run([sys.executable, "-m", "kotto", *args],
-                              env=env, capture_output=True, text=True, timeout=5)
+        return subprocess.run(
+            [sys.executable, "-m", "kotto", *args],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
 
     def configured(self, workspace):
         return {"KOTTO_API_KEY": SECRET, "KOTTO_WORKSPACE": workspace}
@@ -34,7 +42,9 @@ class CLITests(unittest.TestCase):
         self.assertIn("doctor", result.stdout)
         result = self.run_cli("--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.1.0.dev0", result.stdout)
+        from kotto import __version__
+
+        self.assertEqual(result.stdout.strip(), "kotto " + __version__)
 
     def test_missing_key_is_not_ready(self):
         result = self.run_cli("doctor", "--json")
@@ -59,9 +69,14 @@ class CLITests(unittest.TestCase):
         self.assertNotIn(SECRET, result.stdout + result.stderr)
 
     def test_invalid_url_never_echoes_secret(self):
-        for address in ["https://user:" + SECRET + "@example.com", "file:///tmp/x",
-                        "https://example.com?key=" + SECRET, "https://example.com#token",
-                        "https://example.com:bad", "https://exa mple.com"]:
+        for address in [
+            "https://user:" + SECRET + "@example.com",
+            "file:///tmp/x",
+            "https://example.com?key=" + SECRET,
+            "https://example.com#token",
+            "https://example.com:bad",
+            "https://exa mple.com",
+        ]:
             with self.subTest(address=address):
                 result = self.run_cli("doctor", "--json", settings={"KOTTO_BASE_URL": address})
                 self.assertEqual(result.returncode, 2, result.stderr)
@@ -70,7 +85,9 @@ class CLITests(unittest.TestCase):
 
     def test_workspace_must_exist(self):
         with tempfile.TemporaryDirectory() as workspace:
-            result = self.run_cli("doctor", "--json", settings=self.configured(workspace + "/missing"))
+            result = self.run_cli(
+                "doctor", "--json", settings=self.configured(workspace + "/missing")
+            )
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("workspace", result.stdout)
 
@@ -81,11 +98,14 @@ class CLITests(unittest.TestCase):
     def test_doctor_never_connects_and_settings_repr_hides_key(self):
         from kotto.cli.main import main
         from kotto.config import Settings
+
         settings = Settings.from_env({"KOTTO_API_KEY": SECRET})
         self.assertNotIn(SECRET, repr(settings))
-        with patch.dict(os.environ, {"KOTTO_API_KEY": SECRET}, clear=True), \
-                patch("socket.socket.connect", side_effect=AssertionError("Network forbidden")), \
-                redirect_stdout(StringIO()) as output:
+        with (
+            patch.dict(os.environ, {"KOTTO_API_KEY": SECRET}, clear=True),
+            patch("socket.socket.connect", side_effect=AssertionError("Network forbidden")),
+            redirect_stdout(StringIO()) as output,
+        ):
             self.assertEqual(main(["doctor", "--json"]), 0)
         self.assertNotIn(SECRET, output.getvalue())
 

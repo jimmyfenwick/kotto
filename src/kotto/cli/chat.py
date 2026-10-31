@@ -12,7 +12,10 @@ async def chat(settings, prompt: str, *, json_mode: bool = False, gateway=None) 
     try:
         async for event in gateway.stream([{"role": "user", "content": prompt}]):
             if json_mode:
-                print(json.dumps({"event": event.kind, "data": event.data}, ensure_ascii=False), flush=True)
+                print(
+                    json.dumps({"event": event.kind, "data": event.data}, ensure_ascii=False),
+                    flush=True,
+                )
             elif event.kind == "text_delta":
                 print(event.data["text"], end="", flush=True)
                 had_text = True
@@ -23,7 +26,15 @@ async def chat(settings, prompt: str, *, json_mode: bool = False, gateway=None) 
         if had_text and not json_mode:
             print()
         if json_mode:
-            print(json.dumps({"event": "error", "data": {"kind": error.kind, "message": str(error), "complete": False}}), flush=True)
+            print(
+                json.dumps(
+                    {
+                        "event": "error",
+                        "data": {"kind": error.kind, "message": str(error), "complete": False},
+                    }
+                ),
+                flush=True,
+            )
         else:
             print(f"Model error ({error.kind}): {error}. Output is incomplete.", file=sys.stderr)
         return 2 if error.kind == "configuration" else 1

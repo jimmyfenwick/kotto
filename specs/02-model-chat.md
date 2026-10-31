@@ -38,7 +38,7 @@ ModelGateway 接收消息与工具定义，产出带类型的 ModelEvent；供�
 
 预期影响：contracts/message.py、contracts/event.py、model/gateway.py、model/providers/、cli/main.py。
 
-计划验证命令（对应测试须在本功能点实现时新增，当前未执行）：
+复验命令（实际执行结果见 specs/status.json 所引用的验收记录）：
 
 ```text
 PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_model*.py' -v

@@ -38,7 +38,7 @@ execute_host=local 明确表示具备宿主用户权限，不受文件工具路�
 
 预期影响：tools/execution_host.py、tools/builtin/shell.py、tools/policy.py、session/artifacts.py。
 
-计划验证命令（对应测试须在本功能点实现时新增，当前未执行）：
+复验命令（实际执行结果见 specs/status.json 所引用的验收记录）：
 
 ```text
 PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_shell*.py' -v
