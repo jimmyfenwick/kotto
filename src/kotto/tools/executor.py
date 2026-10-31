@@ -58,6 +58,7 @@ class ToolExecutor:
         if not self.workspace.is_dir(): raise ValueError("Workspace must exist.")
         self.tools = {}
         self.journal = None
+        self.observed_paths = set()
         path = {"type": "string"}
         number = {"type": "integer", "minimum": 1, "maximum": 2000}
         self.register(Tool("list", "List a workspace directory. No recursive scan.", schema({"path": path}, []), self._list))
@@ -83,6 +84,7 @@ class ToolExecutor:
         parts = result.relative_to(self.workspace).parts
         if any(p in IGNORED or p.startswith(".env") or p == "credentials.json" for p in parts):
             raise ValueError("Internal or credential path is not available to tools.")
+        self.observed_paths.add(str(result.relative_to(self.workspace)))
         return result
 
     def _text(self, path):
@@ -156,6 +158,7 @@ class ToolExecutor:
                         continue
                     for i, line in enumerate(lines, 1):
                         if args["query"] in line:
+                            self.observed_paths.add(str(p.relative_to(self.workspace)))
                             hits.append({"path": str(p.relative_to(self.workspace)), "line": i, "text": line[:500]})
                             if len(hits) >= 100: return {"hits": hits, "truncated": True, "skipped": skipped}
             return {"hits": hits, "truncated": False, "skipped": skipped}

@@ -97,15 +97,22 @@
       ],
       "commit": {
         "subject": "feat(F07): add cancellation steering and bounded runs",
-        "lookup": "git log --fixed-strings --grep=feat(F07)"
+        "lookup": "git log --fixed-strings --grep=feat(F07)",
+        "sha": "386e3bae9f684cdfc15f466f7860a330418edafd",
+        "remote_verified": true
       }
     },
     {
       "id": "F08",
       "spec": "08-context-management.md",
-      "status": "PENDING",
-      "evidence": [],
-      "commit": null
+      "status": "DONE",
+      "evidence": [
+        "evidence/F08.md"
+      ],
+      "commit": {
+        "subject": "feat(F08): manage scoped rules and compact long contexts",
+        "lookup": "git log --fixed-strings --grep=feat(F08)"
+      }
     },
     {
       "id": "F09",

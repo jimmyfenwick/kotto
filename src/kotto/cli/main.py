@@ -27,6 +27,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--timeout", type=float, default=300, help="Total run timeout in seconds")
     run_parser.add_argument("--max-total-tokens", type=int, help="Stop after reported cumulative usage reaches this limit; not a hard remote billing cap")
     run_parser.add_argument("--interactive", action="store_true", help="Accept /steer TEXT and /cancel while running (TTY text mode)")
+    run_parser.add_argument("--context-window",type=int,default=64000,help="Conservative byte-based input budget, not an exact tokenizer")
+    run_parser.add_argument("--context-reserve",type=int,default=4096)
     from kotto.cli.sessions import DEFAULT_ROOT
     from kotto.session.store import SessionError
     run_parser.add_argument("--session-root", default=DEFAULT_ROOT)
@@ -63,6 +65,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ConfigurationError("max-rounds must be positive.")
                 if args.max_tool_calls<1 or args.timeout<=0 or (args.max_total_tokens is not None and args.max_total_tokens<1):
                     raise ConfigurationError("Run budgets must be positive.")
+                if args.context_reserve<0 or args.context_window<=args.context_reserve+256:
+                    raise ConfigurationError("Invalid context window or reserve.")
                 return asyncio.run(run(settings, args))
             return asyncio.run(chat(settings, args.prompt, json_mode=args.json))
         except (ConfigurationError, SessionError, OSError) as error:
